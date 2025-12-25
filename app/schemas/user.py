@@ -3,9 +3,25 @@ from pydantic import EmailStr
 from sqlmodel import SQLModel
 from app.models.user import UserBase
 
-class UserCreate(UserBase):
+class LoginRequest(SQLModel):
+    email: EmailStr
     password: str
-    referral_code: str | None = None # Optional for signup
+
+class GoogleLoginRequest(SQLModel):
+    token: str
+
+class AppleLoginRequest(SQLModel):
+    token: str
+    first_name: str | None = None
+    last_name: str | None = None
+
+class UserCreate(SQLModel):
+    email: EmailStr
+    password: str
+    first_name: str
+    last_name: str
+    phone_number: str | None = None
+    referral_code: str | None = None
 
 class UserRead(UserBase):
     id: uuid.UUID

@@ -29,12 +29,18 @@ async def get_wallet(
     return wallet
 
 @router.post("/deposit")
-async def deposit_funds():
-    return {"message": "Deposit initiated"}
+async def deposit_funds(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)]
+):
+    return {"message": "Deposit initiated", "user": current_user.email}
 
 @router.post("/withdraw")
-async def withdraw_funds():
-    return {"message": "Withdrawal initiated"}
+async def withdraw_funds(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)]
+):
+    return {"message": "Withdrawal initiated", "user": current_user.email}
 
 @router.get("/banks", response_model=List[BankAccountRead])
 async def get_banks(
