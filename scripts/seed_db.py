@@ -1,229 +1,383 @@
 import asyncio
 import logging
 import uuid
+import random
 from decimal import Decimal
 from datetime import datetime, timezone, timedelta
 
-from sqlalchemy.future import select
 from sqlalchemy import text
+from sqlalchemy.future import select
 from app.db.session import AsyncSessionLocal
 from app.models.user import User
 from app.models.wallet import Wallet, BankAccount, Card
 from app.models.circle import Circle, CircleMember, Contribution
 from app.models.notification import Notification
+from app.models.chat import ChatMessage
 from app.core.security import get_password_hash
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Constants
+PASSWORD = "password123"
+hashed_password = get_password_hash(PASSWORD)
+
 async def seed_data():
     async with AsyncSessionLocal() as session:
         # 0. Clear Database
         logger.info("Clearing database...")
-        # Get table names from models to be safe, or hardcode known ones
-        # Using TRUNCATE ... CASCADE to clear everything cleanly
-        # Note: "user" is quoted because it's a keyword
-        await session.execute(text('TRUNCATE TABLE "user", wallet, bankaccount, card, circle, circlemember, contribution, notification RESTART IDENTITY CASCADE'))
+        await session.execute(text('TRUNCATE TABLE "user", wallet, bankaccount, card, circle, circlemember, contribution, notification, chatmessage RESTART IDENTITY CASCADE'))
         await session.commit()
         logger.info("Database cleared.")
 
         # 1. Create Users
-        users_data = [
-            {
-                "email": "admin@example.com",
-                "password": "password123",
-                "first_name": "Admin",
-                "last_name": "User",
-                "role": "admin",
-                "referral_code": "ADMIN001",
-                "phone_number": "+2348000000000"
-            },
-            {
-                "email": "john.doe@example.com",
-                "password": "password123",
-                "first_name": "John",
-                "last_name": "Doe",
-                "role": "user",
-                "referral_code": "JOHND001",
-                "phone_number": "+2348000000001"
-            },
-            {
-                "email": "jane.smith@example.com",
-                "password": "password123",
-                "first_name": "Jane",
-                "last_name": "Smith",
-                "role": "user",
-                "referral_code": "JANES001",
-                "phone_number": "+2348000000002"
-            }
-        ]
-
-        users = {}
-        for user_data in users_data:
-            result = await session.execute(select(User).where(User.email == user_data["email"]))
-            existing_user = result.scalars().first()
-            
-            if not existing_user:
-                new_user = User(
-                    email=user_data["email"],
-                    hashed_password=get_password_hash(user_data["password"]),
-                    first_name=user_data["first_name"],
-                    last_name=user_data["last_name"],
-                    role=user_data["role"],
-                    referral_code=user_data["referral_code"],
-                    phone_number=user_data["phone_number"],
-                    is_verified=True,
-                    is_active=True
-                )
-                session.add(new_user)
-                users[user_data["email"]] = new_user
-                logger.info(f"Created user: {user_data['email']}")
-            else:
-                users[user_data["email"]] = existing_user
-                logger.info(f"User already exists: {user_data['email']}")
+        logger.info("Creating users...")
+        users = []
         
-        await session.commit()
-        # Refresh users to get IDs
-        for email, user in users.items():
-            await session.refresh(user)
+        # Admin
+        admin = User(
+            email="admin@example.com",
+            hashed_password=hashed_password,
+            first_name="Admin",
+            last_name="User",
+            role="admin",
+            referral_code="ADMIN001",
+            phone_number="+2348000000000",
+            is_verified=True,
+            is_active=True
+        )
+        session.add(admin)
+        users.append(admin)
 
-        john = users["john.doe@example.com"]
-        jane = users["jane.smith@example.com"]
+        # Core Users (John & Jane)
+        john = User(
+            email="john.doe@example.com",
+            hashed_password=hashed_password,
+            first_name="John",
+            last_name="Doe",
+            role="user",
+            referral_code="JOHND001",
+            phone_number="+2348000000001",
+            is_verified=True,
+            is_active=True
+        )
+        session.add(john)
+        users.append(john)
 
-        # 2. Create Wallets
-        for user in users.values():
-            result = await session.execute(select(Wallet).where(Wallet.user_id == user.id))
-            if not result.scalars().first():
-                wallet = Wallet(
-                    user_id=user.id,
-                    balance=Decimal("50000.00") if user.role == "user" else Decimal("0.00"),
-                    currency="NGN"
-                )
-                session.add(wallet)
-                logger.info(f"Created wallet for {user.email}")
-        
-        await session.commit()
+        jane = User(
+            email="jane.smith@example.com",
+            hashed_password=hashed_password,
+            first_name="Jane",
+            last_name="Smith",
+            role="user",
+            referral_code="JANES001",
+            phone_number="+2348000000002",
+            is_verified=True,
+            is_active=True
+        )
+        session.add(jane)
+        users.append(jane)
 
-        # 3. Create Bank Accounts & Cards (for John)
-        result = await session.execute(select(BankAccount).where(BankAccount.user_id == john.id))
-        if not result.scalars().first():
-            bank = BankAccount(
-                user_id=john.id,
-                bank_name="Access Bank",
-                account_number="0123456789",
-                account_name="John Doe",
-                bank_code="044",
-                is_primary=True,
-                status="verified"
+        # Additional Random Users
+        extra_users = []
+        names = [("Michael", "Brown"), ("Emily", "Davis"), ("David", "Wilson"), ("Sarah", "Taylor"), ("Chris", "Anderson")]
+        for i, (first, last) in enumerate(names):
+            user = User(
+                email=f"{first.lower()}.{last.lower()}@example.com",
+                hashed_password=hashed_password,
+                first_name=first,
+                last_name=last,
+                role="user",
+                referral_code=f"{first.upper()[:3]}{last.upper()[:1]}00{i+1}",
+                phone_number=f"+234800000000{i+3}",
+                is_verified=True,
+                is_active=True
             )
-            session.add(bank)
-            logger.info("Created bank account for John")
+            session.add(user)
+            users.append(user)
+            extra_users.append(user)
+        
+        await session.commit()
+        # Refresh to get IDs
+        for u in users:
+            await session.refresh(u)
+        
+        logger.info(f"Created {len(users)} users.")
 
-        result = await session.execute(select(Card).where(Card.user_id == john.id))
-        if not result.scalars().first():
+        # 2. Wallets, Banks & Cards (For ALL Users)
+        logger.info("Creating financial data for all users...")
+        banks_list = [
+            ("Access Bank", "044"), ("GTBank", "058"), ("Zenith Bank", "057"), ("UBA", "033"), ("First Bank", "011"), ("Kuda Bank", "090267")
+        ]
+        
+        for i, user in enumerate(users):
+            # Wallet
+            # Admin gets more, John/Jane get specific, others get random
+            if user.role == "admin":
+                balance = Decimal("1000000.00")
+            elif user == john:
+                balance = Decimal("150000.00")
+            elif user == jane:
+                balance = Decimal("75000.00")
+            else:
+                balance = Decimal(random.randint(20000, 100000))
+
+            wallet = Wallet(
+                user_id=user.id,
+                balance=balance,
+                currency="NGN"
+            )
+            session.add(wallet)
+
+            # Bank Accounts - Everyone gets at least one
+            # Give some users multiple banks
+            num_banks = 1 if i % 3 != 0 else 2 
+            files_banks = random.sample(banks_list, num_banks)
+            
+            for j, (b_name, b_code) in enumerate(files_banks):
+                bank = BankAccount(
+                    user_id=user.id,
+                    bank_name=b_name,
+                    account_number=f"012{user.phone_number[-4:]}{j}{i}", # Generating semi-unique numbers
+                    account_name=f"{user.first_name} {user.last_name}",
+                    bank_code=b_code,
+                    is_primary=(j == 0),
+                    status="verified"
+                )
+                session.add(bank)
+
+            # Cards - Everyone gets at least one
+            card_brand = "visa" if i % 2 == 0 else "mastercard"
             card = Card(
-                user_id=john.id,
-                last4="4242",
-                brand="visa",
-                expiry_month=12,
-                expiry_year=2025,
-                auth_token="AUTH_TOKEN_123",
-                signature="SIG_123"
+                user_id=user.id,
+                last4=f"{random.randint(1000, 9999)}",
+                brand=card_brand,
+                expiry_month=random.randint(1, 12),
+                expiry_year=random.randint(2025, 2028),
+                auth_token=f"AUTH_{user.email}_{i}",
+                signature=f"SIG_{user.email}_{i}"
             )
             session.add(card)
-            logger.info("Created card for John")
 
         await session.commit()
 
-        # 4. Create Circle (John hosts)
-        circle_invite_code = "CIRCLE01"
-        result = await session.execute(select(Circle).where(Circle.invite_code == circle_invite_code))
-        circle = result.scalars().first()
+        # 3. Circles
+        logger.info("Creating circles...")
         
-        if not circle:
-            circle = Circle(
-                name="Family Saving",
-                amount=Decimal("10000.00"),
-                frequency="monthly",
-                cycle_start_date=datetime.now(timezone.utc).replace(tzinfo=None),
-                status="active",
-                invite_code=circle_invite_code
-            )
-            session.add(circle)
-            await session.commit()
-            await session.refresh(circle)
-            logger.info("Created circle 'Family Saving'")
+        # A. Active Circle: "Family Saving" (John Host)
+        circle_family = Circle(
+            name="Family Saving",
+            amount=Decimal("20000.00"),
+            frequency="monthly",
+            cycle_start_date=(datetime.now(timezone.utc) - timedelta(days=45)).replace(tzinfo=None),
+            status="active",
+            invite_code="FAM001"
+        )
+        session.add(circle_family)
+        await session.commit()
+        await session.refresh(circle_family)
 
-            # Add Members
-            # John is Host (Payout 1)
-            member_john = CircleMember(
-                user_id=john.id,
-                circle_id=circle.id,
-                payout_order=1,
-                role="host"
+        # Members for Family Circle
+        fam_members = [john, jane, extra_users[0]] # 3 members
+        for idx, member in enumerate(fam_members):
+            cm = CircleMember(
+                user_id=member.id,
+                circle_id=circle_family.id,
+                payout_order=idx + 1,
+                role="host" if member == john else "member"
             )
-            session.add(member_john)
-
-            # Jane is Member (Payout 2)
-            member_jane = CircleMember(
-                user_id=jane.id,
-                circle_id=circle.id,
-                payout_order=2,
-                role="member"
+            session.add(cm)
+        
+        # Contributions for Family Circle
+        # Cycle 1
+        for member in fam_members:
+            c = Contribution(
+                circle_id=circle_family.id,
+                user_id=member.id,
+                cycle_number=1,
+                amount=circle_family.amount,
+                status="paid",
+                paid_at=(datetime.now(timezone.utc) - timedelta(days=40)).replace(tzinfo=None)
             )
-            session.add(member_jane)
+            session.add(c)
+        
+        # Cycle 2
+        for member in fam_members:
+            status = "pending"
+            paid_at = None
+            if member in [john, jane]:
+                status = "paid"
+                paid_at = (datetime.now(timezone.utc) - timedelta(days=5)).replace(tzinfo=None)
             
-            await session.commit()
-            logger.info("Added members to circle")
-
-            # 5. Create Contributions
-            # Cycle 1: Both paid
-            contribution1 = Contribution(
-                circle_id=circle.id,
-                user_id=john.id,
-                cycle_number=1,
-                amount=Decimal("10000.00"),
-                status="paid",
-                paid_at=(datetime.now(timezone.utc) - timedelta(days=30)).replace(tzinfo=None)
-            )
-            session.add(contribution1)
-
-            contribution2 = Contribution(
-                circle_id=circle.id,
-                user_id=jane.id,
-                cycle_number=1,
-                amount=Decimal("10000.00"),
-                status="paid",
-                paid_at=(datetime.now(timezone.utc) - timedelta(days=29)).replace(tzinfo=None)
-            )
-            session.add(contribution2)
-
-            # Cycle 2: John paid, Jane pending
-            contribution3 = Contribution(
-                circle_id=circle.id,
-                user_id=john.id,
+            c = Contribution(
+                circle_id=circle_family.id,
+                user_id=member.id,
                 cycle_number=2,
-                amount=Decimal("10000.00"),
-                status="paid",
-                paid_at=datetime.now(timezone.utc).replace(tzinfo=None)
+                amount=circle_family.amount,
+                status=status,
+                paid_at=paid_at
             )
-            session.add(contribution3)
+            session.add(c)
 
-            contribution4 = Contribution(
-                circle_id=circle.id,
-                user_id=jane.id,
-                cycle_number=2,
-                amount=Decimal("10000.00"),
-                status="pending"
+        # B. Pending Circle: "Co-workers" (Jane Host)
+        circle_coworkers = Circle(
+            name="Co-workers",
+            amount=Decimal("50000.00"),
+            frequency="monthly",
+            cycle_start_date=datetime.now(timezone.utc).replace(tzinfo=None),
+            status="active",
+            invite_code="WORK01"
+        )
+        session.add(circle_coworkers)
+        await session.commit()
+        await session.refresh(circle_coworkers)
+
+        coworker_members = [jane, extra_users[1], extra_users[2], extra_users[3]]
+        for idx, member in enumerate(coworker_members):
+            cm = CircleMember(
+                user_id=member.id,
+                circle_id=circle_coworkers.id,
+                payout_order=idx + 1,
+                role="host" if member == jane else "member"
             )
-            session.add(contribution4)
+            session.add(cm)
 
-            await session.commit()
-            logger.info("Created contributions")
-        else:
-            logger.info("Circle already exists")
+        # C. Completed Circle: "Holiday Fund" (Admin Host)
+        circle_holiday = Circle(
+            name="Holiday Fund 2024",
+            amount=Decimal("10000.00"),
+            frequency="weekly",
+            cycle_start_date=(datetime.now(timezone.utc) - timedelta(days=100)).replace(tzinfo=None),
+            status="completed",
+            invite_code="HOL24"
+        )
+        session.add(circle_holiday)
+        await session.commit()
+        await session.refresh(circle_holiday)
 
-    logger.info("Database seeding completed successfully!")
+        hol_members = [admin, john, jane]
+        for idx, member in enumerate(hol_members):
+            cm = CircleMember(
+                user_id=member.id,
+                circle_id=circle_holiday.id,
+                payout_order=idx + 1,
+                role="host" if member == admin else "member"
+            )
+            session.add(cm)
+        
+        # Generate 4 completed cycles
+        for cycle in range(1, 5):
+            for member in hol_members:
+                c = Contribution(
+                    circle_id=circle_holiday.id,
+                    user_id=member.id,
+                    cycle_number=cycle,
+                    amount=circle_holiday.amount,
+                    status="paid",
+                    paid_at=(datetime.now(timezone.utc) - timedelta(days=100 - (cycle * 7))).replace(tzinfo=None)
+                )
+                session.add(c)
+        
+        await session.commit()
+
+        # 4. Chat Messages
+        logger.info("Creating chat messages...")
+        
+        # Family Circle Chat
+        msgs_fam = [
+            (john, "Welcome to the family circle everyone!", 44),
+            (jane, "Thanks John, happy to be starting this.", 43),
+            (extra_users[0], "Let's save!", 42),
+            (john, "Just sent my payment for this month.", 5),
+            (jane, "Received notification, I've paid mine too.", 4),
+        ]
+        
+        for user, content, days_ago in msgs_fam:
+            msg = ChatMessage(
+                circle_id=circle_family.id,
+                user_id=user.id,
+                content=content,
+                timestamp=(datetime.now(timezone.utc) - timedelta(days=days_ago)).replace(tzinfo=None),
+                message_type="text"
+            )
+            session.add(msg)
+
+        # Co-workers Circle Chat
+        msgs_work = [
+            (jane, "Hi team, invite sent to everyone.", 1),
+            (extra_users[1], "Got it, joined!", 0),
+            (extra_users[2], "What's the payout order?", 0),
+            (jane, "Randomized for now, we can discuss.", 0),
+        ]
+
+        for user, content, days_ago in msgs_work:
+            msg = ChatMessage(
+                circle_id=circle_coworkers.id,
+                user_id=user.id,
+                content=content,
+                timestamp=(datetime.now(timezone.utc) - timedelta(days=days_ago)).replace(tzinfo=None),
+                message_type="text"
+            )
+            session.add(msg)
+
+        await session.commit()
+
+        # 5. Notifications (More comprehensive)
+        logger.info("Creating comprehensive notifications...")
+        
+        # System-wide notifications for everyone
+        global_notifs = [
+            ("Welcome to Contri!", "We're glad to have you here. Set up your wallet to start.", "info", "high"),
+            ("New Feature Alert", "You can now chat with your circle members directly in the app!", "info", "normal"),
+            ("Security Update", "Please enable 2FA for enhanced security.", "info", "normal")
+        ]
+
+        for user in users:
+            for title, body, n_type, priority in global_notifs:
+                n = Notification(
+                    user_id=user.id,
+                    title=title,
+                    body=body,
+                    type=n_type,
+                    is_read=random.choice([True, False]),
+                    priority=priority
+                )
+                session.add(n)
+
+        # Specific notifications
+        # John - Activity
+        session.add(Notification(
+            user_id=john.id,
+            title="Contribution Received",
+            body="Jane just made a contribution to Family Saving.",
+            type="success",
+            is_read=False
+        ))
+        
+        # Jane - Invite
+        session.add(Notification(
+            user_id=jane.id,
+            title="Circle Invitation",
+            body="John invited you to join 'Family Saving'.",
+            type="action_required",
+            action_url=f"/circle/{circle_family.id}",
+            is_read=True
+        ))
+
+        # Random user - Payment Due
+        session.add(Notification(
+            user_id=extra_users[0].id,
+            title="Payment Reminder",
+            body="Your contribution for Family Saving is due in 3 days.",
+            type="warning",
+            priority="high",
+            is_read=False
+        ))
+
+        await session.commit()
+        logger.info("Notifications created.")
+        
+        logger.info("SEEDING COMPLETE! 🚀")
 
 if __name__ == "__main__":
     asyncio.run(seed_data())

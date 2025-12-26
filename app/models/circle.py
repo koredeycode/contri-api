@@ -9,11 +9,14 @@ class Circle(SQLModel, table=True):
     """
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, description="Unique identifier for the circle")
     name: str = Field(description="Name of the circle")
+    description: str | None = Field(default=None, description="Description of the circle goal")
     amount: Decimal = Field(max_digits=20, decimal_places=2, description="Contribution amount per cycle")
     frequency: str = Field(description="Frequency of contributions (e.g., 'weekly', 'monthly')")
-    cycle_start_date: datetime = Field(description="Start date of the circle cycle")
-    status: str = Field(default="active", description="Current status of the circle")
+    cycle_start_date: datetime | None = Field(default=None, description="Start date of the circle cycle")
+    status: str = Field(default="pending", description="Current status of the circle")
     invite_code: str = Field(unique=True, description="Unique code for inviting members")
+    target_members: int | None = Field(default=None, description="Target number of members needed to start")
+    payout_preference: str = Field(default="fixed", description="Payout order preference: 'fixed' or 'random'")
 
 class CircleMember(SQLModel, table=True):
     """
@@ -23,6 +26,7 @@ class CircleMember(SQLModel, table=True):
     circle_id: uuid.UUID = Field(foreign_key="circle.id", primary_key=True, description="ID of the circle")
     payout_order: int = Field(description="Order in which the member receives the payout (1, 2, 3...)")
     role: str = Field(default="member", description="Role in the circle (e.g., 'host', 'member')")
+    join_date: datetime = Field(default_factory=datetime.now, description="Timestamp when the user joined the circle")
 
 class Contribution(SQLModel, table=True):
     """

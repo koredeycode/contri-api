@@ -9,9 +9,12 @@ class CircleBase(SQLModel):
     Base Circle schema with shared properties.
     """
     name: str
+    description: str | None = None
     amount: Decimal
     frequency: str
-    cycle_start_date: datetime
+    cycle_start_date: datetime | None = None
+    target_members: int | None = None
+    payout_preference: str = "fixed"
 
 class CircleCreate(CircleBase):
     """
@@ -23,9 +26,12 @@ class CircleCreate(CircleBase):
         "json_schema_extra": {
             "example": {
                 "name": "Family Savings",
+                "description": "Saving for summer vacation",
                 "amount": 50000.00,
                 "frequency": "monthly",
-                "cycle_start_date": "2025-01-01T00:00:00Z"
+                "cycle_start_date": "2025-01-01T00:00:00Z",
+                "target_members": 5,
+                "payout_preference": "random"
             }
         }
     }
@@ -43,6 +49,11 @@ class CircleUpdate(SQLModel):
     Schema for updating circle details (e.g. name or status).
     """
     name: str | None = None
+    description: str | None = None
+    amount: Decimal | None = None
+    frequency: str | None = None
+    target_members: int | None = None
+    payout_preference: str | None = None
     status: str | None = None
 
 # Circle Member Schemas
@@ -59,6 +70,12 @@ class CircleMemberRead(CircleMemberCreate):
     Schema for reading circle member details.
     """
     payout_order: int
+
+class CircleMemberReorder(SQLModel):
+    """
+    Schema for reordering members.
+    """
+    member_ids: list[uuid.UUID]
 
 # Contribution Schemas
 class ContributionRead(SQLModel):
