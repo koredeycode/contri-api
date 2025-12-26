@@ -9,10 +9,14 @@ from datetime import datetime
 
 from app.api.deps import get_current_user, get_db
 from app.models.user import User
-from app.models.circle import Circle, CircleMember
+from app.models.circle import Circle, CircleMember, Contribution
+from app.models.wallet import Wallet
+from app.models.transaction import Transaction
+from app.models.enums import ContributionStatus, TransactionType, TransactionStatus
 from app.schemas.circle import CircleCreate, CircleRead, CircleUpdate, CircleMemberRead, CircleMemberReorder
 from app.schemas.response import APIResponse
 from app.core.config import settings
+from app.utils.financials import calculate_current_cycle
 
 router = APIRouter()
 
@@ -397,3 +401,156 @@ async def reorder_members(
     await session.commit()
     
     return APIResponse(message="Members reordered successfully", data=updated_members)
+
+
+@router.post("/{circle_id}/contribute", response_model=APIResponse[dict])
+async def contribute_to_circle(
+    circle_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)]
+):
+    """
+    Contribute to the circle for the current cycle.
+    """
+    circle = await session.get(Circle, circle_id)
+    if not circle:
+        raise HTTPException(status_code=404, detail="Circle not found")
+
+    if circle.status != "active":
+        raise HTTPException(status_code=400, detail="Circle is not active")
+
+    # Check membership
+    query = select(CircleMember).where(
+        CircleMember.circle_id == circle_id, 
+        CircleMember.user_id == current_user.id
+    )
+    result = await session.execute(query)
+    member = result.scalar_one_or_none()
+    
+    if not member:
+        raise HTTPException(status_code=403, detail="Not a member of this circle")
+
+    current_cycle = calculate_current_cycle(circle)
+    
+    # Check if already contributed for this cycle
+    query = select(Contribution).where(
+        Contribution.circle_id == circle_id,
+        Contribution.user_id == current_user.id,
+        Contribution.cycle_number == current_cycle,
+        Contribution.status == ContributionStatus.PAID
+    )
+    result = await session.execute(query)
+    existing_contribution = result.scalar_one_or_none()
+    
+    if existing_contribution:
+        raise HTTPException(status_code=400, detail=f"Already contributed for cycle {current_cycle}")
+
+    # Process Payment: Debit User Wallet
+    # Get user wallet
+    query = select(Wallet).where(Wallet.user_id == current_user.id)
+    result = await session.execute(query)
+    wallet = result.scalar_one_or_none()
+    
+    if not wallet:
+        raise HTTPException(status_code=400, detail="User wallet not found")
+        
+    contribution_amount_cents = int(circle.amount * 100)
+    if wallet.balance < contribution_amount_cents:
+        raise HTTPException(status_code=400, detail="Insufficient wallet balance")
+        
+    # Deduct from wallet
+    wallet.balance -= contribution_amount_cents
+    session.add(wallet)
+    
+    # Create Debit Transaction
+    debit_txn = Transaction(
+        wallet_id=wallet.id,
+        amount=contribution_amount_cents,
+        type=TransactionType.CONTRIBUTION,
+        status=TransactionStatus.SUCCESS,
+        reference=str(uuid.uuid4()),
+        description=f"Contribution to circle {circle.name} (Cycle {current_cycle})"
+    )
+    session.add(debit_txn)
+    
+    # Record Contribution
+    contribution = Contribution(
+        circle_id=circle.id,
+        user_id=current_user.id,
+        cycle_number=current_cycle,
+        amount=circle.amount,
+        status=ContributionStatus.PAID,
+        paid_at=datetime.now()
+    )
+    session.add(contribution)
+    
+    # Check for Payout Logic
+    # 1. Get total members count
+    query = select(CircleMember).where(CircleMember.circle_id == circle_id)
+    result = await session.execute(query)
+    all_members = result.scalars().all()
+    total_members_count = len(all_members)
+    
+    # 2. Get count of paid contributions for this cycle (including the one just added)
+    # Since we haven't committed yet, the new contribution acts as +1
+    query = select(Contribution).where(
+        Contribution.circle_id == circle_id,
+        Contribution.cycle_number == current_cycle,
+        Contribution.status == ContributionStatus.PAID
+    )
+    result = await session.execute(query)
+    paid_contributions = result.scalars().all()
+    paid_count = len(paid_contributions) + 1 # Add 1 for the current pending contribution
+    
+    payout_triggered = False
+    recipient_name = ""
+    
+    if paid_count == total_members_count:
+        # Everyone has contributed -> Trigger Payout
+        payout_triggered = True
+        
+        # Identify Recipient: Payout Order == Cycle Number
+        # If cycle > members, we might need modulo logic or implementation of multi-rounds. 
+        # For MVP, let's assume Payout Order matches Cycle Number exactly.
+        
+        target_order = current_cycle
+        if target_order > total_members_count:
+             # Fallback or loop? Let's use modulo logic just in case: (cycle - 1) % members + 1
+             target_order = ((current_cycle - 1) % total_members_count) + 1
+        
+        recipient_member = next((m for m in all_members if m.payout_order == target_order), None)
+        
+        if recipient_member:
+            # Credit Recipient Wallet
+            query = select(Wallet).where(Wallet.user_id == recipient_member.user_id)
+            result = await session.execute(query)
+            recipient_wallet = result.scalar_one_or_none()
+            
+            if recipient_wallet:
+                total_payout_cents = contribution_amount_cents * total_members_count
+                recipient_wallet.balance += total_payout_cents
+                session.add(recipient_wallet)
+                
+                # Create Credit Transaction
+                credit_txn = Transaction(
+                    wallet_id=recipient_wallet.id,
+                    amount=total_payout_cents,
+                    type=TransactionType.PAYOUT,
+                    status=TransactionStatus.SUCCESS,
+                    reference=str(uuid.uuid4()),
+                    description=f"Payout from circle {circle.name} (Cycle {current_cycle})"
+                )
+                session.add(credit_txn)
+                recipient_name = str(recipient_member.user_id) # Ideally get user name, but ID is fine for log
+
+    await session.commit()
+    
+    return APIResponse(
+        message="Contribution successful", 
+        data={
+            "contribution_id": contribution.id,
+            "cycle": current_cycle,
+            "payout_triggered": payout_triggered,
+            "recipient": recipient_name if payout_triggered else None
+        }
+    )

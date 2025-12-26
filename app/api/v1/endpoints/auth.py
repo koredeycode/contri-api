@@ -9,6 +9,7 @@ from app.core import security
 from app.core.config import settings
 from app.core.rate_limit import limiter
 from app.models.user import User
+from app.models.wallet import Wallet
 from app.schemas.token import Token
 
 from app.schemas.user import UserCreate, UserRead, LoginRequest, GoogleLoginRequest, AppleLoginRequest
@@ -45,6 +46,11 @@ async def create_user(request: Request, *, session: Annotated[AsyncSession, Depe
     user = User(**user_data, referral_code=ref_code)
     user.hashed_password = security.get_password_hash(user_in.password)
     session.add(user)
+    
+    # Create Wallet
+    wallet = Wallet(user_id=user.id, balance=0, currency="NGN")
+    session.add(wallet)
+    
     await session.commit()
     await session.refresh(user)
     return APIResponse(message="User created successfully", data=user)
@@ -91,6 +97,11 @@ async def get_or_create_social_user(session: AsyncSession, email: str, provider:
             is_verified=True # Social accounts are usually verified
         )
         session.add(user)
+        
+        # Create Wallet
+        wallet = Wallet(user_id=user.id, balance=0, currency="NGN")
+        session.add(wallet)
+        
         await session.commit()
         await session.refresh(user)
     else:

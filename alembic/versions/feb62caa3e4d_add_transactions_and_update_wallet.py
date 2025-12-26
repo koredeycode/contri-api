@@ -24,40 +24,49 @@ def upgrade() -> None:
     op.alter_column('circle', 'frequency',
                existing_type=sa.VARCHAR(),
                type_=sa.Enum('WEEKLY', 'BIWEEKLY', 'MONTHLY', name='circlefrequency'),
-               existing_nullable=False)
+               existing_nullable=False,
+               postgresql_using="frequency::circlefrequency")
     op.alter_column('circle', 'status',
                existing_type=sa.VARCHAR(),
                type_=sa.Enum('PENDING', 'ACTIVE', 'COMPLETED', name='circlestatus'),
-               existing_nullable=False)
+               existing_nullable=False,
+               postgresql_using="status::circlestatus")
     op.alter_column('circle', 'payout_preference',
                existing_type=sa.VARCHAR(),
                type_=sa.Enum('FIXED', 'RANDOM', name='payoutpreference'),
                existing_nullable=False,
-               existing_server_default=sa.text("'fixed'::character varying"))
+               existing_server_default=sa.text("'fixed'::character varying"),
+               postgresql_using="payout_preference::payoutpreference")
     op.alter_column('circlemember', 'role',
                existing_type=sa.VARCHAR(),
                type_=sa.Enum('HOST', 'MEMBER', name='circlerole'),
-               existing_nullable=False)
+               existing_nullable=False,
+               postgresql_using="role::circlerole")
     op.alter_column('contribution', 'status',
                existing_type=sa.VARCHAR(),
                type_=sa.Enum('PENDING', 'PAID', 'MISSED', 'OVERDUE', name='contributionstatus'),
-               existing_nullable=False)
+               existing_nullable=False,
+               postgresql_using="status::contributionstatus")
     op.alter_column('notification', 'type',
                existing_type=sa.VARCHAR(),
                type_=sa.Enum('INFO', 'SUCCESS', 'WARNING', 'ERROR', 'ACTION_REQUIRED', name='notificationtype'),
-               existing_nullable=False)
+               existing_nullable=False,
+               postgresql_using="type::notificationtype")
     op.alter_column('notification', 'priority',
                existing_type=sa.VARCHAR(),
                type_=sa.Enum('HIGH', 'NORMAL', 'LOW', name='notificationpriority'),
-               existing_nullable=False)
+               existing_nullable=False,
+               postgresql_using="priority::notificationpriority")
     op.alter_column('user', 'role',
                existing_type=sa.VARCHAR(),
                type_=sa.Enum('ADMIN', 'USER', name='userrole'),
-               existing_nullable=False)
+               existing_nullable=False,
+               postgresql_using="role::userrole")
     op.alter_column('wallet', 'balance',
                existing_type=sa.NUMERIC(precision=20, scale=2),
                type_=sa.BigInteger(),
-               existing_nullable=False)
+               existing_nullable=False,
+               postgresql_using="balance::bigint")
     # ### end Alembic commands ###
 
 
