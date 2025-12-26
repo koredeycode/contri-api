@@ -9,12 +9,13 @@ from app.core import security
 from app.core.config import settings
 from app.models.user import User
 from app.schemas.token import Token
-from app.schemas.token import Token
+
 from app.schemas.user import UserCreate, UserRead, LoginRequest, GoogleLoginRequest, AppleLoginRequest
+from app.schemas.response import APIResponse
 
 router = APIRouter()
 
-@router.post("/signup", response_model=UserRead)
+@router.post("/signup", response_model=APIResponse[UserRead])
 async def create_user(*, session: Annotated[AsyncSession, Depends(deps.get_db)], user_in: UserCreate) -> Any:
     result = await session.execute(select(User).where(User.email == user_in.email))
     if result.scalars().first():
@@ -33,9 +34,9 @@ async def create_user(*, session: Annotated[AsyncSession, Depends(deps.get_db)],
     session.add(user)
     await session.commit()
     await session.refresh(user)
-    return user
+    return APIResponse(message="User created successfully", data=user)
 
-@router.post("/login", response_model=Token)
+@router.post("/login", response_model=APIResponse[Token])
 async def login_access_token(session: Annotated[AsyncSession, Depends(deps.get_db)], form_data: LoginRequest) -> Any:
     result = await session.execute(select(User).where(User.email == form_data.email))
     user = result.scalars().first()
@@ -44,7 +45,7 @@ async def login_access_token(session: Annotated[AsyncSession, Depends(deps.get_d
     elif not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
     
-    return Token(access_token=security.create_access_token(user.id), token_type="bearer")
+    return APIResponse(message="Login successful", data=Token(access_token=security.create_access_token(user.id), token_type="bearer"))
 
 async def get_or_create_social_user(session: AsyncSession, email: str, provider: str, social_id: str, first_name: str, last_name: str) -> User:
     result = await session.execute(select(User).where(User.email == email))
@@ -76,7 +77,7 @@ async def get_or_create_social_user(session: AsyncSession, email: str, provider:
              await session.commit()
     return user
 
-@router.post("/social/google", response_model=Token)
+@router.post("/social/google", response_model=APIResponse[Token])
 async def google_login(session: Annotated[AsyncSession, Depends(deps.get_db)], login_in: GoogleLoginRequest) -> Any:
     try:
         from google.oauth2 import id_token
@@ -90,9 +91,9 @@ async def google_login(session: Annotated[AsyncSession, Depends(deps.get_db)], l
         raise HTTPException(status_code=400, detail="Invalid Google token")
 
     user = await get_or_create_social_user(session, email, "google", social_id, first_name, last_name)
-    return Token(access_token=security.create_access_token(user.id), token_type="bearer")
+    return APIResponse(message="Google login successful", data=Token(access_token=security.create_access_token(user.id), token_type="bearer"))
 
-@router.post("/social/apple", response_model=Token)
+@router.post("/social/apple", response_model=APIResponse[Token])
 async def apple_login(session: Annotated[AsyncSession, Depends(deps.get_db)], login_in: AppleLoginRequest) -> Any:
     try:
         import jwt
@@ -125,4 +126,4 @@ async def apple_login(session: Annotated[AsyncSession, Depends(deps.get_db)], lo
         raise HTTPException(status_code=400, detail="Invalid Apple token")
 
     user = await get_or_create_social_user(session, email, "apple", social_id, login_in.first_name or "", login_in.last_name or "")
-    return Token(access_token=security.create_access_token(user.id), token_type="bearer")
+    return APIResponse(message="Apple login successful", data=Token(access_token=security.create_access_token(user.id), token_type="bearer"))

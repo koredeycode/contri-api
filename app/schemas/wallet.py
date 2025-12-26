@@ -19,6 +19,17 @@ class BankAccountCreate(SQLModel):
     account_name: str
     bank_code: str
 
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "bank_name": "First Bank",
+                "account_number": "1234567890",
+                "account_name": "John Doe",
+                "bank_code": "011"
+            }
+        }
+    }
+
 class BankAccountRead(BankAccountCreate):
     id: uuid.UUID
     is_primary: bool
@@ -32,6 +43,19 @@ class CardCreate(SQLModel):
     expiry_year: int
     auth_token: str
     signature: str
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "last4": "4242",
+                "brand": "Visa",
+                "expiry_month": 12,
+                "expiry_year": 2025,
+                "auth_token": "tok_12345",
+                "signature": "sig_abc123"
+            }
+        }
+    }
 
 class CardRead(CardCreate):
     id: uuid.UUID

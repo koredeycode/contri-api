@@ -7,6 +7,15 @@ class LoginRequest(SQLModel):
     email: EmailStr
     password: str
 
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "email": "johndoe@example.com",
+                "password": "securepassword123"
+            }
+        }
+    }
+
 class GoogleLoginRequest(SQLModel):
     token: str
 
@@ -22,6 +31,19 @@ class UserCreate(SQLModel):
     last_name: str
     phone_number: str | None = None
     referral_code: str | None = None
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "email": "johndoe@example.com",
+                "password": "securepassword123",
+                "first_name": "John",
+                "last_name": "Doe",
+                "phone_number": "+1234567890",
+                "referral_code": "REF123"
+            }
+        }
+    }
 
 class UserRead(UserBase):
     id: uuid.UUID

@@ -8,10 +8,11 @@ from app.api.deps import get_current_user, get_db
 from app.models.user import User
 from app.models.circle import Circle, CircleMember
 from app.schemas.circle import CircleCreate, CircleRead, CircleMemberRead
+from app.schemas.response import APIResponse
 
 router = APIRouter()
 
-@router.post("/", response_model=CircleRead)
+@router.post("/", response_model=APIResponse[CircleRead])
 async def create_circle(
     circle_in: CircleCreate,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -38,9 +39,9 @@ async def create_circle(
     session.add(member)
     await session.commit()
     
-    return circle
+    return APIResponse(message="Circle created successfully", data=circle)
 
-@router.get("/", response_model=List[CircleRead])
+@router.get("/", response_model=APIResponse[List[CircleRead]])
 async def get_circles(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)]
@@ -48,9 +49,9 @@ async def get_circles(
     # Join Circle and CircleMember to get circles where user is a member
     query = select(Circle).join(CircleMember).where(CircleMember.user_id == current_user.id)
     result = await session.execute(query)
-    return result.scalars().all()
+    return APIResponse(message="Circles retrieved", data=result.scalars().all())
 
-@router.get("/{circle_id}", response_model=CircleRead)
+@router.get("/{circle_id}", response_model=APIResponse[CircleRead])
 async def get_circle(
     circle_id: uuid.UUID,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -71,9 +72,9 @@ async def get_circle(
     if not member:
         raise HTTPException(status_code=403, detail="Not a member of this circle")
         
-    return circle
+    return APIResponse(message="Circle details retrieved", data=circle)
 
-@router.post("/join")
+@router.post("/join", response_model=APIResponse[dict])
 async def join_circle(
     invite_code: str,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -112,4 +113,4 @@ async def join_circle(
     session.add(new_member)
     await session.commit()
     
-    return {"message": "Joined circle successfully", "circle_id": circle.id}
+    return APIResponse(message="Joined circle successfully", data={"circle_id": circle.id})

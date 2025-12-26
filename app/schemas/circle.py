@@ -13,6 +13,17 @@ class CircleBase(SQLModel):
 class CircleCreate(CircleBase):
     pass
 
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "name": "Family Savings",
+                "amount": 50000.00,
+                "frequency": "monthly",
+                "cycle_start_date": "2025-01-01T00:00:00Z"
+            }
+        }
+    }
+
 class CircleRead(CircleBase):
     id: uuid.UUID
     status: str

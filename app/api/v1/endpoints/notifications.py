@@ -8,19 +8,20 @@ from app.api.deps import get_current_user, get_db
 from app.models.user import User
 from app.models.notification import Notification
 from app.schemas.notification import NotificationRead
+from app.schemas.response import APIResponse
 
 router = APIRouter()
 
-@router.get("/", response_model=List[NotificationRead])
+@router.get("/", response_model=APIResponse[List[NotificationRead]])
 async def get_notifications(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)]
 ):
     query = select(Notification).where(Notification.user_id == current_user.id).order_by(Notification.id.desc())
     result = await session.execute(query)
-    return result.scalars().all()
+    return APIResponse(message="Notifications retrieved", data=result.scalars().all())
 
-@router.post("/{notification_id}/read")
+@router.post("/{notification_id}/read", response_model=APIResponse[dict])
 async def mark_as_read(
     notification_id: uuid.UUID,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -37,4 +38,4 @@ async def mark_as_read(
     session.add(notification)
     await session.commit()
     
-    return {"message": "Marked as read"}
+    return APIResponse(message="Marked as read", data={})

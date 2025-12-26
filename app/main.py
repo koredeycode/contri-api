@@ -2,6 +2,10 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 from app.api.v1.api import api_router
 from app.core.config import settings
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from app.core.exception_handlers import http_exception_handler, validation_exception_handler
+from app.schemas.response import ValidationErrorResponse, HTTPErrorResponse
 
 from contextlib import asynccontextmanager
 
@@ -15,15 +19,24 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
         
-    print(f"Application running at http://localhost:8000")
-    print(f"Swagger UI: http://localhost:8000/docs")
+    print("Application running at http://localhost:8000")
+    print("Swagger UI: http://localhost:8000/docs")
     yield
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
-    lifespan=lifespan
+    lifespan=lifespan,
+    responses={
+        400: {"model": ValidationErrorResponse, "description": "Validation Error"},
+        401: {"model": HTTPErrorResponse, "description": "Unauthorized"},
+        403: {"model": HTTPErrorResponse, "description": "Forbidden"},
+        404: {"model": HTTPErrorResponse, "description": "Not Found"},
+    }
 )
+
+app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
 
 # Set all CORS enabled origins
 if settings.BACKEND_CORS_ORIGINS:
