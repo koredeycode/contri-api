@@ -6,6 +6,7 @@ from sqlmodel import select
 
 from app.api import deps
 from app.core import security
+from app.core.config import settings
 from app.models.user import User
 from app.schemas.token import Token
 from app.schemas.token import Token
@@ -80,7 +81,7 @@ async def google_login(session: Annotated[AsyncSession, Depends(deps.get_db)], l
     try:
         from google.oauth2 import id_token
         from google.auth.transport import requests as google_requests
-        id_info = id_token.verify_oauth2_token(login_in.token, google_requests.Request())
+        id_info = id_token.verify_oauth2_token(login_in.token, google_requests.Request(), audience=settings.GOOGLE_CLIENT_ID)
         email = id_info['email']
         social_id = id_info['sub']
         first_name = id_info.get('given_name', "")
@@ -112,7 +113,7 @@ async def apple_login(session: Annotated[AsyncSession, Depends(deps.get_db)], lo
         public_key = RSAAlgorithm.from_jwk(json.dumps(key))
         
         # Verify token
-        payload = jwt.decode(login_in.token, public_key, algorithms=['RS256'], audience="YOUR_APPLE_CLIENT_ID_HERE", options={"verify_aud": False}) 
+        payload = jwt.decode(login_in.token, public_key, algorithms=['RS256'], audience=settings.APPLE_CLIENT_ID) 
         email = payload.get('email')
         social_id = payload['sub']
         

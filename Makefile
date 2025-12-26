@@ -6,7 +6,7 @@ ALEMBIC := $(UV) run alembic
 UVICORN := $(UV) run uvicorn
 CELERY := $(UV) run celery
 
-.PHONY: help install dev run test lint format clean migration migrate worker up down
+.PHONY: help install dev run test lint format clean migration migrate worker up down seed
 
 help:
 	@echo "Available commands:"
@@ -22,6 +22,7 @@ help:
 	@echo "  worker     Run Celery worker"
 	@echo "  up         Start docker services"
 	@echo "  down       Stop docker services"
+	@echo "  seed       Seed database with sample data"
 
 install:
 	$(UV) venv
@@ -59,3 +60,6 @@ up:
 
 down:
 	docker-compose down
+
+seed:
+	$(PYTHON) scripts/seed_db.py
