@@ -1,5 +1,6 @@
 import uuid
 from sqlmodel import SQLModel, Field
+from app.models.enums import NotificationType, NotificationPriority
 
 class Notification(SQLModel, table=True):
     """
@@ -9,7 +10,7 @@ class Notification(SQLModel, table=True):
     user_id: uuid.UUID = Field(foreign_key="user.id", description="ID of the user receiving the notification")
     title: str = Field(description="Notification title")
     body: str = Field(description="Content of the notification")
-    type: str = Field(description="Type of notification (e.g., 'action_required', 'info', 'success')")
+    type: NotificationType = Field(description="Type of notification")
     is_read: bool = Field(default=False, description="Whether the notification has been read")
     action_url: str | None = Field(default=None, description="Deep link for action required")
-    priority: str = Field(default="normal", description="Priority level (e.g., 'high', 'normal')")
+    priority: NotificationPriority = Field(default=NotificationPriority.NORMAL, description="Priority level")

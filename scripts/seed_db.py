@@ -171,7 +171,10 @@ async def seed_data():
             frequency="monthly",
             cycle_start_date=(datetime.now(timezone.utc) - timedelta(days=45)).replace(tzinfo=None),
             status="active",
-            invite_code="FAM001"
+            invite_code="FAM001",
+            description="Saving for the rainy days.",
+            target_members=5,
+            payout_preference="fixed"
         )
         session.add(circle_family)
         await session.commit()
@@ -184,7 +187,8 @@ async def seed_data():
                 user_id=member.id,
                 circle_id=circle_family.id,
                 payout_order=idx + 1,
-                role="host" if member == john else "member"
+                role="host" if member == john else "member",
+                join_date=(datetime.now(timezone.utc) - timedelta(days=50)).replace(tzinfo=None)
             )
             session.add(cm)
         
@@ -224,9 +228,12 @@ async def seed_data():
             name="Co-workers",
             amount=Decimal("50000.00"),
             frequency="monthly",
-            cycle_start_date=datetime.now(timezone.utc).replace(tzinfo=None),
-            status="active",
-            invite_code="WORK01"
+            cycle_start_date=None,
+            status="pending",
+            invite_code="WORK01",
+            description="Office monthly thrift",
+            target_members=10,
+            payout_preference="random"
         )
         session.add(circle_coworkers)
         await session.commit()
@@ -238,7 +245,8 @@ async def seed_data():
                 user_id=member.id,
                 circle_id=circle_coworkers.id,
                 payout_order=idx + 1,
-                role="host" if member == jane else "member"
+                role="host" if member == jane else "member",
+                join_date=(datetime.now(timezone.utc) - timedelta(hours=idx)).replace(tzinfo=None)
             )
             session.add(cm)
 
@@ -249,7 +257,10 @@ async def seed_data():
             frequency="weekly",
             cycle_start_date=(datetime.now(timezone.utc) - timedelta(days=100)).replace(tzinfo=None),
             status="completed",
-            invite_code="HOL24"
+            invite_code="HOL24",
+            description="Saved for Dec 2024 Holidays",
+            target_members=3,
+            payout_preference="fixed"
         )
         session.add(circle_holiday)
         await session.commit()
@@ -261,7 +272,8 @@ async def seed_data():
                 user_id=member.id,
                 circle_id=circle_holiday.id,
                 payout_order=idx + 1,
-                role="host" if member == admin else "member"
+                role="host" if member == admin else "member",
+                join_date=(datetime.now(timezone.utc) - timedelta(days=110)).replace(tzinfo=None)
             )
             session.add(cm)
         

@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 from sqlmodel import SQLModel, Field
 from pydantic import EmailStr
+from app.models.enums import UserRole
 
 class UserBase(SQLModel):
     """
@@ -13,7 +14,7 @@ class UserBase(SQLModel):
     phone_number: str | None = Field(default=None, description="User's phone number")
     avatar_url: str | None = Field(default=None, description="URL to user's avatar image")
     is_active: bool = Field(default=True, description="Whether the user account is active")
-    role: str = Field(default="user", description="User role (e.g., 'user', 'admin')")
+    role: UserRole = Field(default=UserRole.USER, description="User role")
     is_verified: bool = Field(default=False, description="Whether the user is verified")
     social_provider: str | None = Field(default=None, description="Social auth provider name (e.g., 'google', 'apple')")
     social_id: str | None = Field(default=None, description="Unique ID from the social provider")

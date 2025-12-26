@@ -2,6 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 import uuid
 from sqlmodel import SQLModel
+from app.models.enums import CircleFrequency, CircleStatus, PayoutPreference, CircleRole, ContributionStatus
 
 # Circle Schemas
 class CircleBase(SQLModel):
@@ -11,10 +12,10 @@ class CircleBase(SQLModel):
     name: str
     description: str | None = None
     amount: Decimal
-    frequency: str
+    frequency: CircleFrequency
     cycle_start_date: datetime | None = None
     target_members: int | None = None
-    payout_preference: str = "fixed"
+    payout_preference: PayoutPreference = PayoutPreference.FIXED
 
 class CircleCreate(CircleBase):
     """
@@ -41,7 +42,7 @@ class CircleRead(CircleBase):
     Schema for reading circle details.
     """
     id: uuid.UUID
-    status: str
+    status: CircleStatus
     invite_code: str
 
 class CircleUpdate(SQLModel):
@@ -51,10 +52,10 @@ class CircleUpdate(SQLModel):
     name: str | None = None
     description: str | None = None
     amount: Decimal | None = None
-    frequency: str | None = None
+    frequency: CircleFrequency | None = None
     target_members: int | None = None
-    payout_preference: str | None = None
-    status: str | None = None
+    payout_preference: PayoutPreference | None = None
+    status: CircleStatus | None = None
 
 # Circle Member Schemas
 class CircleMemberCreate(SQLModel):
@@ -63,7 +64,7 @@ class CircleMemberCreate(SQLModel):
     """
     circle_id: uuid.UUID
     user_id: uuid.UUID
-    role: str = "member"
+    role: CircleRole = CircleRole.MEMBER
 
 class CircleMemberRead(CircleMemberCreate):
     """
@@ -84,5 +85,5 @@ class ContributionRead(SQLModel):
     user_id: uuid.UUID
     cycle_number: int
     amount: Decimal
-    status: str
+    status: ContributionStatus
     paid_at: datetime | None
