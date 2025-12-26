@@ -12,6 +12,7 @@ from app.models.user import User
 from app.models.circle import Circle, CircleMember
 from app.schemas.circle import CircleCreate, CircleRead, CircleUpdate, CircleMemberRead, CircleMemberReorder
 from app.schemas.response import APIResponse
+from app.core.config import settings
 
 router = APIRouter()
 
@@ -28,6 +29,10 @@ async def create_circle(
     """
     # generate invite code
     invite_code = str(uuid.uuid4())[:8]
+
+    # Validate target_members limit
+    if circle_in.target_members is not None and circle_in.target_members > settings.MAX_CIRCLE_MEMBERS:
+        raise HTTPException(status_code=400, detail=f"Target members cannot exceed {settings.MAX_CIRCLE_MEMBERS}")
     
     circle = Circle.model_validate(
         circle_in, 
@@ -129,6 +134,9 @@ async def join_circle(
     members = result.scalars().all()
     next_order = len(members) + 1
     
+    if len(members) >= settings.MAX_CIRCLE_MEMBERS:
+        raise HTTPException(status_code=400, detail=f"Circle has reached the maximum limit of {settings.MAX_CIRCLE_MEMBERS} members")
+    
     new_member = CircleMember(
         circle_id=circle.id,
         user_id=current_user.id,
@@ -176,6 +184,10 @@ async def update_circle(
     circle_data = circle_in.model_dump(exclude_unset=True)
     for key, value in circle_data.items():
         setattr(circle, key, value)
+    
+    # Validate target_members limit if updated
+    if circle.target_members is not None and circle.target_members > settings.MAX_CIRCLE_MEMBERS:
+         raise HTTPException(status_code=400, detail=f"Target members cannot exceed {settings.MAX_CIRCLE_MEMBERS}")
     
     # If changed to fixed, reorder by join_date
     if old_preference != "fixed" and circle.payout_preference == "fixed":

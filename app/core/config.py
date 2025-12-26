@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     """
     API_V1_STR: str = "/api/v1"
     PROJECT_NAME: str = "Contri API"
+    MAX_CIRCLE_MEMBERS: int = 10
     
     # SECURITY
     SECRET_KEY: str = Field(description="Secret key for JWT encoding")
