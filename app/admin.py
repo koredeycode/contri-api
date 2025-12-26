@@ -5,7 +5,7 @@ from starlette.responses import RedirectResponse
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from app.models import User, Wallet, Circle, Notification, AdminLog
+from app.models import User, Wallet, Circle, Notification, AdminLog, ChatMessage
 from app.core import security
 from app.db.session import AsyncSessionLocal
 from sqlmodel import select
@@ -132,6 +132,14 @@ class AdminLogAdmin(ModelView, model=AdminLog):
     can_edit = False
     can_delete = False
 
+class ChatMessageAdmin(BaseAdminView, model=ChatMessage):
+    """
+    Admin view for ChatMessage model.
+    """
+    column_list = [ChatMessage.id, ChatMessage.circle_id, ChatMessage.user_id, ChatMessage.message_type, ChatMessage.timestamp]
+    column_sortable_list = [ChatMessage.timestamp]
+    column_default_sort = ("timestamp", True)
+
 def setup_admin(app: FastAPI, engine: AsyncEngine):
     """
     Initializes SQLAdmin with the FastAPI app and SQLAlchemy engine.
@@ -145,4 +153,5 @@ def setup_admin(app: FastAPI, engine: AsyncEngine):
     admin.add_view(WalletAdmin)
     admin.add_view(CircleAdmin)
     admin.add_view(NotificationAdmin)
+    admin.add_view(ChatMessageAdmin)
     admin.add_view(AdminLogAdmin)
