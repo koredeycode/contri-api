@@ -4,14 +4,23 @@ from pydantic import BaseModel
 T = TypeVar("T")
 
 class APIResponse(BaseModel, Generic[T]):
+    """
+    Standard API response wrapper.
+    """
     message: str = "success"
     data: Optional[T] = None
 
 class ValidationErrorDetail(BaseModel):
+    """
+    Structure for a single validation error.
+    """
     field: str
     message: str
 
 class ValidationErrorResponse(BaseModel):
+    """
+    Response schema for validation errors (400 Bad Request).
+    """
     message: str = "Validation Error"
     data: List[ValidationErrorDetail]
 
@@ -34,5 +43,8 @@ class ValidationErrorResponse(BaseModel):
     }
 
 class HTTPErrorResponse(BaseModel):
+    """
+    Standard schema for other HTTP errors (401, 403, 404).
+    """
     message: str
     data: dict = {}

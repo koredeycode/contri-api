@@ -5,15 +5,24 @@ from app.models.wallet import Wallet, BankAccount, Card
 
 # Wallet Schemas
 class WalletRead(SQLModel):
+    """
+    Schema for reading wallet details.
+    """
     id: uuid.UUID
     balance: Decimal
     currency: str
 
 class WalletUpdate(SQLModel):
+    """
+    Schema for updating wallet balance (internal use mostly).
+    """
     balance: Decimal | None = None
 
 # Bank Account Schemas
 class BankAccountCreate(SQLModel):
+    """
+    Schema for linking a new bank account.
+    """
     bank_name: str
     account_number: str
     account_name: str
@@ -31,12 +40,18 @@ class BankAccountCreate(SQLModel):
     }
 
 class BankAccountRead(BankAccountCreate):
+    """
+    Schema for reading bank account details.
+    """
     id: uuid.UUID
     is_primary: bool
     status: str
 
 # Card Schemas
 class CardCreate(SQLModel):
+    """
+    Schema for linking a new card.
+    """
     last4: str
     brand: str
     expiry_month: int
@@ -58,4 +73,7 @@ class CardCreate(SQLModel):
     }
 
 class CardRead(CardCreate):
+    """
+    Schema for reading card details.
+    """
     id: uuid.UUID

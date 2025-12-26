@@ -4,6 +4,10 @@ from fastapi.exceptions import RequestValidationError, HTTPException
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """
+    Global handler for standard HTTP exceptions.
+    Returns a unified JSON response format.
+    """
     return JSONResponse(
         status_code=exc.status_code,
         content={
@@ -13,6 +17,10 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     )
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """
+    Global handler for Pydantic validation errors.
+    Returns a 400 Bad Request with detailed error messages.
+    """
     errors = []
     for error in exc.errors():
         # Get the field name from the last element of 'loc'

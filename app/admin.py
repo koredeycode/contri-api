@@ -11,6 +11,10 @@ from app.db.session import AsyncSessionLocal
 from sqlmodel import select
 
 class AdminAuth(AuthenticationBackend):
+    """
+    Custom Authentication Backend for SQLAdmin.
+    Verifies user credentials and ensures verified admin role.
+    """
     async def login(self, request: Request) -> bool:
         form = await request.form()
         email, password = form["username"], form["password"]
@@ -40,6 +44,9 @@ class AdminAuth(AuthenticationBackend):
         return True
 
 class BaseAdminView(ModelView):
+    """
+    Base view for all admin models to enforce authentication and providing audit logging.
+    """
     def is_accessible(self, request: Request) -> bool:
         return True
 
@@ -92,25 +99,43 @@ class BaseAdminView(ModelView):
             await session.commit()
 
 class UserAdmin(BaseAdminView, model=User):
+    """
+    Admin view for User model.
+    """
     column_list = [User.id, User.email, User.first_name, User.role, User.is_verified]
     column_searchable_list = [User.email, User.first_name, User.last_name]
 
 class WalletAdmin(BaseAdminView, model=Wallet):
+    """
+    Admin view for Wallet model.
+    """
     column_list = [Wallet.id, Wallet.user_id, Wallet.balance, Wallet.currency]
 
 class CircleAdmin(BaseAdminView, model=Circle):
+    """
+    Admin view for Circle model.
+    """
     column_list = [Circle.id, Circle.name, Circle.status, Circle.amount]
 
 class NotificationAdmin(BaseAdminView, model=Notification):
+    """
+    Admin view for Notification model.
+    """
     column_list = [Notification.id, Notification.user_id, Notification.title, Notification.type]
 
 class AdminLogAdmin(ModelView, model=AdminLog):
+    """
+    Admin view for AdminLog model (Read-only).
+    """
     column_list = [AdminLog.admin_id, AdminLog.action, AdminLog.target_model, AdminLog.timestamp]
     can_create = False
     can_edit = False
     can_delete = False
 
 def setup_admin(app: FastAPI, engine: AsyncEngine):
+    """
+    Initializes SQLAdmin with the FastAPI app and SQLAlchemy engine.
+    """
     from app.core.config import settings
     # Ensure SECRET_KEY is set for session
     authentication_backend = AdminAuth(secret_key=settings.SECRET_KEY)

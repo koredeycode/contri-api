@@ -17,6 +17,9 @@ async def get_notifications(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)]
 ):
+    """
+    Retrieve all notifications for the current user.
+    """
     query = select(Notification).where(Notification.user_id == current_user.id).order_by(Notification.id.desc())
     result = await session.execute(query)
     return APIResponse(message="Notifications retrieved", data=result.scalars().all())
@@ -27,6 +30,9 @@ async def mark_as_read(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)]
 ):
+    """
+    Mark a specific notification as read.
+    """
     notification = await session.get(Notification, notification_id)
     if not notification:
         raise HTTPException(status_code=404, detail="Notification not found")

@@ -2,6 +2,9 @@ import uuid
 from sqlmodel import SQLModel
 
 class NotificationRead(SQLModel):
+    """
+    Schema for reading a notification.
+    """
     id: uuid.UUID
     title: str
     body: str

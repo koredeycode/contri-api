@@ -18,6 +18,11 @@ async def create_circle(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)]
 ):
+    """
+    Create a new circle.
+    
+    The user creating the circle becomes the host and the first member.
+    """
     # generate invite code
     invite_code = str(uuid.uuid4())[:8]
     
@@ -46,6 +51,9 @@ async def get_circles(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)]
 ):
+    """
+    List all circles where the current user is a member.
+    """
     # Join Circle and CircleMember to get circles where user is a member
     query = select(Circle).join(CircleMember).where(CircleMember.user_id == current_user.id)
     result = await session.execute(query)
@@ -57,6 +65,11 @@ async def get_circle(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)]
 ):
+    """
+    Get details of a specific circle.
+    
+    Only members of the circle can view its details.
+    """
     circle = await session.get(Circle, circle_id)
     if not circle:
         raise HTTPException(status_code=404, detail="Circle not found")
@@ -80,6 +93,11 @@ async def join_circle(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)]
 ):
+    """
+    Join a circle using an invite code.
+    
+    Assigns the next available payout slot to the new member.
+    """
     query = select(Circle).where(Circle.invite_code == invite_code)
     result = await session.execute(query)
     circle = result.scalar_one_or_none()

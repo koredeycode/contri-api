@@ -4,6 +4,9 @@ from sqlmodel import SQLModel
 from app.models.user import UserBase
 
 class LoginRequest(SQLModel):
+    """
+    Schema for user login request.
+    """
     email: EmailStr
     password: str
 
@@ -17,9 +20,15 @@ class LoginRequest(SQLModel):
     }
 
 class GoogleLoginRequest(SQLModel):
+    """
+    Schema for Google OAuth2 login.
+    """
     token: str
 
 class AppleLoginRequest(SQLModel):
+    """
+    Schema for Apple OAuth2 login.
+    """
     token: str
     first_name: str | None = None
     last_name: str | None = None

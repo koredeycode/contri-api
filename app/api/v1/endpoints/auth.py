@@ -19,6 +19,17 @@ router = APIRouter()
 @router.post("/signup", response_model=APIResponse[UserRead])
 @limiter.limit("5/minute")
 async def create_user(request: Request, *, session: Annotated[AsyncSession, Depends(deps.get_db)], user_in: UserCreate) -> Any:
+    """
+    Register a new user.
+
+    - **email**: Valid email address (unique).
+    - **password**: Strong password.
+    - **first_name**: User's first name.
+    - **last_name**: User's last name.
+    - **referral_code**: Optional referral code.
+
+    Returns the created user profiles.
+    """
     result = await session.execute(select(User).where(User.email == user_in.email))
     if result.scalars().first():
         raise HTTPException(
@@ -41,6 +52,14 @@ async def create_user(request: Request, *, session: Annotated[AsyncSession, Depe
 @router.post("/login", response_model=APIResponse[Token])
 @limiter.limit("5/minute")
 async def login_access_token(request: Request, session: Annotated[AsyncSession, Depends(deps.get_db)], form_data: LoginRequest) -> Any:
+    """
+    OAuth2 compatible token login, get an access token for future requests.
+
+    - **email**: User email.
+    - **password**: User password.
+
+    Returns an access token and token type.
+    """
     result = await session.execute(select(User).where(User.email == form_data.email))
     user = result.scalars().first()
     if not user or not security.verify_password(form_data.password, user.hashed_password):
@@ -51,6 +70,9 @@ async def login_access_token(request: Request, session: Annotated[AsyncSession, 
     return APIResponse(message="Login successful", data=Token(access_token=security.create_access_token(user.id), token_type="bearer"))
 
 async def get_or_create_social_user(session: AsyncSession, email: str, provider: str, social_id: str, first_name: str, last_name: str) -> User:
+    """
+    Helper to find or create a user from social login data.
+    """
     result = await session.execute(select(User).where(User.email == email))
     user = result.scalars().first()
     
@@ -82,6 +104,9 @@ async def get_or_create_social_user(session: AsyncSession, email: str, provider:
 
 @router.post("/social/google", response_model=APIResponse[Token])
 async def google_login(session: Annotated[AsyncSession, Depends(deps.get_db)], login_in: GoogleLoginRequest) -> Any:
+    """
+    Google Social Login. Exchange Google ID token for app access token.
+    """
     try:
         from google.oauth2 import id_token
         from google.auth.transport import requests as google_requests
@@ -98,6 +123,9 @@ async def google_login(session: Annotated[AsyncSession, Depends(deps.get_db)], l
 
 @router.post("/social/apple", response_model=APIResponse[Token])
 async def apple_login(session: Annotated[AsyncSession, Depends(deps.get_db)], login_in: AppleLoginRequest) -> Any:
+    """
+    Apple Social Login. Exchange Apple ID token for app access token.
+    """
     try:
         import jwt
         import requests
