@@ -1,7 +1,7 @@
 from decimal import Decimal
 import uuid
 from sqlmodel import SQLModel
-from app.models.wallet import Wallet, BankAccount, Card
+
 
 # Wallet Schemas
 class WalletRead(SQLModel):
@@ -47,6 +47,20 @@ class BankAccountRead(BankAccountCreate):
     is_primary: bool
     status: str
 
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "id": "123e4567-e89b-12d3-a456-426614174000",
+                "bank_name": "First Bank",
+                "account_number": "1234567890",
+                "account_name": "John Doe",
+                "bank_code": "011",
+                "is_primary": True,
+                "status": "active"
+            }
+        }
+    }
+
 # Card Schemas
 class CardCreate(SQLModel):
     """
@@ -77,3 +91,17 @@ class CardRead(CardCreate):
     Schema for reading card details.
     """
     id: uuid.UUID
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "id": "123e4567-e89b-12d3-a456-426614174000",
+                "last4": "4242",
+                "brand": "Visa",
+                "expiry_month": 12,
+                "expiry_year": 2025,
+                "auth_token": "tok_12345",
+                "signature": "sig_abc123"
+            }
+        }
+    }

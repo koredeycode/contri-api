@@ -39,3 +39,15 @@ class NotificationPriority(StrEnum):
     HIGH = "high"
     NORMAL = "normal"
     LOW = "low"
+
+class TransactionType(StrEnum):
+    DEPOSIT = "deposit"
+    WITHDRAWAL = "withdrawal"
+    TRANSFER = "transfer"
+    CONTRIBUTION = "contribution"
+    PAYOUT = "payout"
+
+class TransactionStatus(StrEnum):
+    PENDING = "pending"
+    SUCCESS = "success"
+    FAILED = "failed"

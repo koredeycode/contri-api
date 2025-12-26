@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str | None = None
     APPLE_CLIENT_ID: str | None = None
 
+    # Paystack
+    PAYSTACK_SECRET_KEY: str | None = None
+    PAYSTACK_PUBLIC_KEY: str | None = None
+
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v: Any) -> Any:

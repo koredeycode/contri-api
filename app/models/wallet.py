@@ -1,6 +1,7 @@
 import uuid
 from decimal import Decimal
 from sqlmodel import SQLModel, Field
+from sqlalchemy import BigInteger
 
 class Wallet(SQLModel, table=True):
     """
@@ -8,7 +9,7 @@ class Wallet(SQLModel, table=True):
     """
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, description="Unique identifier for the wallet")
     user_id: uuid.UUID = Field(foreign_key="user.id", description="ID of the wallet owner")
-    balance: Decimal = Field(default=0.00, max_digits=20, decimal_places=2, description="Current wallet balance")
+    balance: int = Field(default=0, sa_type=BigInteger, description="Current wallet balance in kobo/cents")
     currency: str = Field(default="NGN", description="Currency code (e.g., 'NGN')")
 
 class BankAccount(SQLModel, table=True):
