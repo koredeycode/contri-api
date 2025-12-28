@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 from sqlmodel import SQLModel, Field
 
@@ -10,4 +10,4 @@ class AdminLog(SQLModel, table=True):
     target_model: str
     ip_address: str | None = None
     details: str | None = None
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None))

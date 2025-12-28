@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlmodel import SQLModel, Field
 from pydantic import EmailStr
 from app.models.enums import UserRole
@@ -26,4 +26,4 @@ class User(UserBase, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, description="Unique identifier for the user")
     hashed_password: str = Field(description="Hashed version of the user's password")
     referral_code: str = Field(unique=True, index=True, description="Unique referral code for invitations")
-    created_at: datetime = Field(default_factory=datetime.utcnow, description="Timestamp when the user was created")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None), description="Timestamp when the user was created")

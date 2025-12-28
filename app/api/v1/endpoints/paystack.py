@@ -9,7 +9,7 @@ from app.models.wallet import Wallet
 from app.models.enums import TransactionStatus, TransactionType
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -61,7 +61,7 @@ async def paystack_webhook(request: Request, session: Annotated[AsyncSession, De
             # Update Transaction
             transaction.status = TransactionStatus.SUCCESS
             transaction.provider_reference = str(data.get("id"))
-            transaction.updated_at = datetime.utcnow()
+            transaction.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
             
             # Credit Wallet
             wallet = await session.get(Wallet, transaction.wallet_id)

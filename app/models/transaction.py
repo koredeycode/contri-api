@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Any
 from sqlmodel import SQLModel, Field, JSON, Column
 from sqlalchemy import BigInteger
@@ -19,5 +19,5 @@ class Transaction(SQLModel, table=True):
     description: str = Field(description="Description of the transaction")
     txn_metadata: Optional[dict[str, Any]] = Field(default={}, sa_column=Column(JSON), description="Additional metadata")
     
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
