@@ -1,5 +1,4 @@
 from datetime import datetime
-from decimal import Decimal
 import uuid
 from sqlmodel import SQLModel
 from app.models.enums import CircleFrequency, CircleStatus, PayoutPreference, CircleRole, ContributionStatus
@@ -11,7 +10,7 @@ class CircleBase(SQLModel):
     """
     name: str
     description: str | None = None
-    amount: Decimal
+    amount: int
     frequency: CircleFrequency
     cycle_start_date: datetime | None = None
     target_members: int | None = None
@@ -28,7 +27,7 @@ class CircleCreate(CircleBase):
             "example": {
                 "name": "Family Savings",
                 "description": "Saving for summer vacation",
-                "amount": 50000.00,
+                "amount": 5000000,
                 "frequency": "monthly",
                 "cycle_start_date": "2025-01-01T00:00:00Z",
                 "target_members": 5,
@@ -51,7 +50,7 @@ class CircleUpdate(SQLModel):
     """
     name: str | None = None
     description: str | None = None
-    amount: Decimal | None = None
+    amount: int | None = None
     frequency: CircleFrequency | None = None
     target_members: int | None = None
     payout_preference: PayoutPreference | None = None
@@ -84,6 +83,6 @@ class ContributionRead(SQLModel):
     circle_id: uuid.UUID
     user_id: uuid.UUID
     cycle_number: int
-    amount: Decimal
+    amount: int
     status: ContributionStatus
     paid_at: datetime | None

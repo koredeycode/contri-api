@@ -72,7 +72,7 @@ async def test_contribution_flow(client, session):
     # 3. Create Circle
     circle_data = {
         "name": "Test Circle",
-        "amount": 10000.00,
+        "amount": 1000000,
         "frequency": "weekly",
         "payout_preference": "fixed"
     }

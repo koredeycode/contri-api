@@ -454,7 +454,7 @@ async def contribute_to_circle(
     if not wallet:
         raise HTTPException(status_code=400, detail="User wallet not found")
         
-    contribution_amount_cents = int(circle.amount * 100)
+    contribution_amount_cents = circle.amount
     if wallet.balance < contribution_amount_cents:
         raise HTTPException(status_code=400, detail="Insufficient wallet balance")
         

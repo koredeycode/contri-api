@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 from sqlmodel import SQLModel, Field
+from sqlalchemy import BigInteger
 from app.models.enums import CircleFrequency, CircleStatus, PayoutPreference, CircleRole, ContributionStatus
 
 class Circle(SQLModel, table=True):
@@ -11,7 +12,7 @@ class Circle(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, description="Unique identifier for the circle")
     name: str = Field(description="Name of the circle")
     description: str | None = Field(default=None, description="Description of the circle goal")
-    amount: Decimal = Field(max_digits=20, decimal_places=2, description="Contribution amount per cycle")
+    amount: int = Field(sa_type=BigInteger, description="Contribution amount per cycle in cents")
     frequency: CircleFrequency = Field(description="Frequency of contributions")
     cycle_start_date: datetime | None = Field(default=None, description="Start date of the circle cycle")
     status: CircleStatus = Field(default=CircleStatus.PENDING, description="Current status of the circle")
@@ -37,6 +38,6 @@ class Contribution(SQLModel, table=True):
     circle_id: uuid.UUID = Field(foreign_key="circle.id", description="ID of the circle")
     user_id: uuid.UUID = Field(foreign_key="user.id", description="ID of the user making the contribution")
     cycle_number: int = Field(description="The cycle number for this contribution")
-    amount: Decimal = Field(max_digits=20, decimal_places=2, description="Amount contributed")
+    amount: int = Field(sa_type=BigInteger, description="Amount contributed in cents")
     status: ContributionStatus = Field(description="Status of the contribution")
     paid_at: datetime | None = Field(default=None, description="Timestamp when the contribution was paid")
