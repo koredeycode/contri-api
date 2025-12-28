@@ -1,7 +1,7 @@
 from typing import Annotated, List, Any
 import uuid
 import datetime
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -11,11 +11,14 @@ from app.models.circle import CircleMember
 from app.models.chat import ChatMessage
 from app.schemas.chat import ChatMessageCreate, ChatMessageRead
 from app.schemas.response import APIResponse
+from app.core.rate_limit import limiter
 
 router = APIRouter()
 
 @router.get("/{circle_id}", response_model=APIResponse[List[ChatMessageRead]])
+@limiter.limit("30/minute")
 async def get_circle_messages(
+    request: Request,
     circle_id: uuid.UUID,
     current_user: Annotated[User, Depends(deps.get_current_user)],
     session: Annotated[AsyncSession, Depends(deps.get_db)],
@@ -68,7 +71,9 @@ async def get_circle_messages(
     return APIResponse(message="Messages retrieved", data=message_list[::-1])
 
 @router.post("/{circle_id}", response_model=APIResponse[ChatMessageRead])
+@limiter.limit("20/minute")
 async def send_message(
+    request: Request,
     circle_id: uuid.UUID,
     message_in: ChatMessageCreate,
     current_user: Annotated[User, Depends(deps.get_current_user)],

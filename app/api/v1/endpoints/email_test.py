@@ -1,11 +1,13 @@
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Request
+from app.core.rate_limit import limiter
 from app.worker import send_email_task
 from typing import Any
 
 router = APIRouter()
 
 @router.post("/send-test-email", status_code=201)
-def send_test_email(email_to: str) -> Any:
+@limiter.limit("2/minute")
+def send_test_email(request: Request, email_to: str) -> Any:
     """
     Send a test email using Celery worker.
     """

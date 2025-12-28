@@ -1,6 +1,6 @@
 from typing import Annotated, List
 import uuid
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -17,12 +17,15 @@ from app.schemas.circle import CircleCreate, CircleRead, CircleUpdate, CircleMem
 from app.schemas.response import APIResponse
 from app.core.config import settings
 from app.utils.financials import calculate_current_cycle
+from app.core.rate_limit import limiter
 
 router = APIRouter()
 from app.worker import send_email_task
 
 @router.post("/", response_model=APIResponse[CircleRead])
+@limiter.limit("5/minute")
 async def create_circle(
+    request: Request,
     circle_in: CircleCreate,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)]
@@ -64,7 +67,9 @@ async def create_circle(
     return APIResponse(message="Circle created successfully", data=circle)
 
 @router.get("/", response_model=APIResponse[List[CircleRead]])
+@limiter.limit("10/minute")
 async def get_circles(
+    request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)]
 ):
@@ -77,7 +82,9 @@ async def get_circles(
     return APIResponse(message="Circles retrieved", data=result.scalars().all())
 
 @router.get("/{circle_id}", response_model=APIResponse[CircleRead])
+@limiter.limit("20/minute")
 async def get_circle(
+    request: Request,
     circle_id: uuid.UUID,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)]
@@ -105,7 +112,9 @@ async def get_circle(
     return APIResponse(message="Circle details retrieved", data=circle)
 
 @router.post("/join", response_model=APIResponse[dict])
+@limiter.limit("5/minute")
 async def join_circle(
+    request: Request,
     invite_code: str,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)]
@@ -198,7 +207,9 @@ async def join_circle(
     return APIResponse(message="Joined circle successfully", data={"circle_id": circle.id})
 
 @router.patch("/{circle_id}", response_model=APIResponse[CircleRead])
+@limiter.limit("5/minute")
 async def update_circle(
+    request: Request,
     circle_id: uuid.UUID,
     circle_in: CircleUpdate,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -254,7 +265,9 @@ async def update_circle(
     return APIResponse(message="Circle updated successfully", data=circle)
 
 @router.delete("/{circle_id}/members/{member_id}", response_model=APIResponse[dict])
+@limiter.limit("5/minute")
 async def remove_member(
+    request: Request,
     circle_id: uuid.UUID,
     member_id: uuid.UUID,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -299,7 +312,9 @@ async def remove_member(
     return APIResponse(message="Member removed successfully", data={"member_id": member_id})
 
 @router.get("/{circle_id}/members", response_model=APIResponse[List[CircleMemberRead]])
+@limiter.limit("20/minute")
 async def get_circle_members(
+    request: Request,
     circle_id: uuid.UUID,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)]
@@ -330,7 +345,9 @@ async def get_circle_members(
     return APIResponse(message="Members retrieved", data=members)
 
 @router.post("/{circle_id}/start", response_model=APIResponse[CircleRead])
+@limiter.limit("5/minute")
 async def start_circle(
+    request: Request,
     circle_id: uuid.UUID,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)]
@@ -420,7 +437,9 @@ async def start_circle(
     return APIResponse(message="Circle started successfully", data=circle)
 
 @router.put("/{circle_id}/members/order", response_model=APIResponse[list[CircleMemberRead]])
+@limiter.limit("5/minute")
 async def reorder_members(
+    request: Request,
     circle_id: uuid.UUID,
     order_data: CircleMemberReorder,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -475,7 +494,9 @@ async def reorder_members(
 
 
 @router.post("/{circle_id}/contribute", response_model=APIResponse[dict])
+@limiter.limit("5/minute")
 async def contribute_to_circle(
+    request: Request,
     circle_id: uuid.UUID,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)]

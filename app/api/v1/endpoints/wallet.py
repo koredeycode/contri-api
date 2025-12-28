@@ -1,5 +1,5 @@
 from typing import Annotated, List
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -8,11 +8,14 @@ from app.models.user import User
 from app.models.wallet import Wallet, BankAccount, Card
 from app.schemas.wallet import WalletRead, BankAccountCreate, BankAccountRead, CardCreate, CardRead
 from app.schemas.response import APIResponse
+from app.core.rate_limit import limiter
 
 router = APIRouter()
 
 @router.get("/", response_model=APIResponse[WalletRead])
+@limiter.limit("20/minute")
 async def get_wallet(
+    request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)]
 ):
@@ -35,7 +38,9 @@ async def get_wallet(
     return APIResponse(message="Wallet details retrieved", data=wallet)
 
 @router.post("/deposit", response_model=APIResponse[dict])
+@limiter.limit("10/minute")
 async def deposit_funds(
+    request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)]
 ):
@@ -45,7 +50,9 @@ async def deposit_funds(
     return APIResponse(message="Deposit initiated", data={"user": current_user.email})
 
 @router.post("/withdraw", response_model=APIResponse[dict])
+@limiter.limit("10/minute")
 async def withdraw_funds(
+    request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)]
 ):
@@ -55,7 +62,9 @@ async def withdraw_funds(
     return APIResponse(message="Withdrawal initiated", data={"user": current_user.email})
 
 @router.get("/banks", response_model=APIResponse[List[BankAccountRead]])
+@limiter.limit("10/minute")
 async def get_banks(
+    request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)]
 ):
@@ -67,7 +76,9 @@ async def get_banks(
     return APIResponse(message="Bank accounts retrieved", data=result.scalars().all())
 
 @router.post("/banks", response_model=APIResponse[BankAccountRead])
+@limiter.limit("10/minute")
 async def link_bank(
+    request: Request,
     bank_in: BankAccountCreate,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)]
@@ -82,7 +93,9 @@ async def link_bank(
     return APIResponse(message="Bank account added successfully", data=bank)
 
 @router.get("/cards", response_model=APIResponse[List[CardRead]])
+@limiter.limit("10/minute")
 async def get_cards(
+    request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)]
 ):
@@ -94,7 +107,9 @@ async def get_cards(
     return APIResponse(message="Cards retrieved", data=result.scalars().all())
 
 @router.post("/cards", response_model=APIResponse[CardRead])
+@limiter.limit("10/minute")
 async def link_card(
+    request: Request,
     card_in: CardCreate,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)]

@@ -1,5 +1,5 @@
 from typing import Annotated, Any
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api import deps
 from app.models.user import User
@@ -7,18 +7,25 @@ from app.models.user import User
 from app.schemas.user import UserRead, UserUpdate
 from app.schemas.response import APIResponse
 from app.core.security import get_password_hash
+from app.core.rate_limit import limiter
 
 router = APIRouter()
 
 @router.get("/me", response_model=APIResponse[UserRead])
-async def read_user_me(current_user: Annotated[User, Depends(deps.get_current_user)]) -> Any:
+@limiter.limit("10/minute")
+async def read_user_me(
+    request: Request,
+    current_user: Annotated[User, Depends(deps.get_current_user)]
+) -> Any:
     """
     Get current user details.
     """
     return APIResponse(message="User details retrieved", data=current_user)
 
 @router.put("/me", response_model=APIResponse[UserRead])
+@limiter.limit("10/minute")
 async def update_user_me(
+    request: Request,
     *,
     session: Annotated[AsyncSession, Depends(deps.get_db)],
     user_in: UserUpdate,

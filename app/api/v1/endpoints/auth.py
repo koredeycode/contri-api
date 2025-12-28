@@ -128,7 +128,8 @@ async def get_or_create_social_user(session: AsyncSession, email: str, provider:
     return user
 
 @router.post("/social/google", response_model=APIResponse[Token])
-async def google_login(session: Annotated[AsyncSession, Depends(deps.get_db)], login_in: GoogleLoginRequest) -> Any:
+@limiter.limit("5/minute")
+async def google_login(request: Request, session: Annotated[AsyncSession, Depends(deps.get_db)], login_in: GoogleLoginRequest) -> Any:
     """
     Google Social Login. Exchange Google ID token for app access token.
     """
@@ -147,7 +148,8 @@ async def google_login(session: Annotated[AsyncSession, Depends(deps.get_db)], l
     return APIResponse(message="Google login successful", data=Token(access_token=security.create_access_token(user.id), token_type="bearer"))
 
 @router.post("/social/apple", response_model=APIResponse[Token])
-async def apple_login(session: Annotated[AsyncSession, Depends(deps.get_db)], login_in: AppleLoginRequest) -> Any:
+@limiter.limit("5/minute")
+async def apple_login(request: Request, session: Annotated[AsyncSession, Depends(deps.get_db)], login_in: AppleLoginRequest) -> Any:
     """
     Apple Social Login. Exchange Apple ID token for app access token.
     """

@@ -12,6 +12,8 @@ import uuid
 from pydantic import BaseModel, Field
 
 from app.schemas.response import APIResponse
+from app.core.rate_limit import limiter
+from fastapi import Request
 
 router = APIRouter()
 
@@ -19,7 +21,9 @@ class DepositRequest(BaseModel):
     amount: float = Field(..., gt=0, description="Amount to deposit in main currency units (e.g., Naira)")
 
 @router.post("/deposit")
+@limiter.limit("5/minute")
 async def initiate_deposit(
+    request: Request,
     deposit: DepositRequest,
     current_user: Annotated[User, Depends(deps.get_current_user)],
     session: Annotated[AsyncSession, Depends(deps.get_db)]
@@ -74,7 +78,9 @@ async def initiate_deposit(
         raise HTTPException(status_code=400, detail=f"Failed to initiate payment: {str(e)}")
 
 @router.get("/", response_model=APIResponse[list[Transaction]])
+@limiter.limit("20/minute")
 async def get_transactions(
+    request: Request,
     session: Annotated[AsyncSession, Depends(deps.get_db)],
     current_user: Annotated[User, Depends(deps.get_current_user)],
     skip: int = 0,
