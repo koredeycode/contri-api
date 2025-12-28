@@ -11,6 +11,8 @@ from app.services.paystack import PaystackService
 import uuid
 from pydantic import BaseModel, Field
 
+from app.schemas.response import APIResponse
+
 router = APIRouter()
 
 class DepositRequest(BaseModel):
@@ -71,7 +73,7 @@ async def initiate_deposit(
         await session.commit()
         raise HTTPException(status_code=400, detail=f"Failed to initiate payment: {str(e)}")
 
-@router.get("/", response_model=list[Transaction])
+@router.get("/", response_model=APIResponse[list[Transaction]])
 async def get_transactions(
     session: Annotated[AsyncSession, Depends(deps.get_db)],
     current_user: Annotated[User, Depends(deps.get_current_user)],
@@ -84,11 +86,11 @@ async def get_transactions(
     result = await session.execute(select(Wallet).where(Wallet.user_id == current_user.id))
     wallet = result.scalars().first()
     if not wallet:
-        return []
+        return APIResponse(message="Transactions retrieved", data=[])
 
     result = await session.execute(
         select(Transaction).where(Transaction.wallet_id == wallet.id)
         .offset(skip).limit(limit).order_by(Transaction.created_at.desc())
     )
     transactions = result.scalars().all()
-    return transactions
+    return APIResponse(message="Transactions retrieved", data=transactions)
