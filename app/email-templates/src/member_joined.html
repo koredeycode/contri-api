@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block preheader %}A new member has joined your circle{% endblock %}
+
+{% block content %}
+<h2>New Member Alert!</h2>
+<p>Hello {{ name }},</p>
+<p>
+    <strong>{{ member_name }}</strong> has just joined your circle <strong>{{ circle_name }}</strong>.
+</p>
+<p>
+    <strong>Progress:</strong><br>
+    Members: {{ current_members }} / {{ target_members }}
+</p>
+{% if current_members == target_members %}
+<p>
+    <strong>🎉 Your circle is full!</strong> You can now start the circle.
+</p>
+{% endif %}
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" class="btn btn-primary">
+    <tbody>
+        <tr>
+            <td align="left">
+                <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                    <tbody>
+                        <tr>
+                            <td> <a href="{{ circle_link }}" target="_blank">View Circle</a> </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </td>
+        </tr>
+    </tbody>
+</table>
+{% endblock %}

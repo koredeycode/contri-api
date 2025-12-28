@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block preheader %}Your wallet has been credited{% endblock %}
+
+{% block content %}
+<h2>Deposit Successful</h2>
+<p>Hello {{ name }},</p>
+<p>
+    Your wallet has been successfully credited with <strong>{{ currency }} {{ amount }}</strong>.
+</p>
+<p>
+    Transaction Reference: {{ transaction_reference }}<br>
+    Date: {{ date }}
+</p>
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" class="btn btn-primary">
+    <tbody>
+        <tr>
+            <td align="left">
+                <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                    <tbody>
+                        <tr>
+                            <td> <a href="{{ dashboard_link }}" target="_blank">View Dashboard</a> </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </td>
+        </tr>
+    </tbody>
+</table>
+{% endblock %}

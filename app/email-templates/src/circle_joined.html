@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block preheader %}You have successfully joined a circle!{% endblock %}
+
+{% block content %}
+<h2>Welcome to {{ circle_name }}!</h2>
+<p>Hello {{ name }},</p>
+<p>
+    You have successfully joined the circle <strong>{{ circle_name }}</strong>.
+</p>
+<p>
+    <strong>Details:</strong><br>
+    Amount: {{ currency }} {{ amount }}<br>
+    Frequency: {{ frequency }}<br>
+    My Payout Order: #{{ payout_order }}
+</p>
+<p>
+    Get ready to save and grow together!
+</p>
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" class="btn btn-primary">
+    <tbody>
+        <tr>
+            <td align="left">
+                <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                    <tbody>
+                        <tr>
+                            <td> <a href="{{ circle_link }}" target="_blank">View Circle</a> </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </td>
+        </tr>
+    </tbody>
+</table>
+{% endblock %}

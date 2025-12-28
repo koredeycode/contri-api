@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, wallet, circles, notifications, users, chat, transactions, paystack
+from app.api.v1.endpoints import auth, wallet, circles, notifications, users, chat, transactions, paystack, email_test
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
@@ -10,3 +10,4 @@ api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(chat.router, prefix="/chat", tags=["chat"])
 api_router.include_router(transactions.router, prefix="/transactions", tags=["transactions"])
 api_router.include_router(paystack.router, prefix="/webhooks/paystack", tags=["webhooks"])
+api_router.include_router(email_test.router, prefix="/test-email", tags=["test-email"])

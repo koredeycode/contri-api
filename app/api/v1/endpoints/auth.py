@@ -16,6 +16,7 @@ from app.schemas.user import UserCreate, UserRead, LoginRequest, GoogleLoginRequ
 from app.schemas.response import APIResponse
 
 router = APIRouter()
+from app.worker import send_email_task
 
 @router.post("/signup", response_model=APIResponse[UserRead])
 @limiter.limit("5/minute")
@@ -53,6 +54,19 @@ async def create_user(request: Request, *, session: Annotated[AsyncSession, Depe
     
     await session.commit()
     await session.refresh(user)
+
+    # Send Welcome Email
+    send_email_task.delay(
+        email_to=user.email,
+        subject="Welcome to Contri!",
+        html_template="welcome.html",
+        environment={
+            "project_name": settings.PROJECT_NAME,
+            "name": f"{user.first_name}",
+            "link": "https://contri.app/verify" # Placeholder
+        }
+    )
+
     return APIResponse(message="User created successfully", data=user)
 
 @router.post("/login", response_model=APIResponse[Token])

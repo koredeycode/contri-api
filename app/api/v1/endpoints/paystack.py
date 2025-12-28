@@ -10,9 +10,11 @@ from app.models.enums import TransactionStatus, TransactionType
 import json
 import logging
 from datetime import datetime, timezone
+from app.models.user import User
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+from app.worker import send_email_task
 
 @router.post("/webhook")
 async def paystack_webhook(request: Request, session: Annotated[AsyncSession, Depends(deps.get_db)]):
@@ -72,6 +74,24 @@ async def paystack_webhook(request: Request, session: Annotated[AsyncSession, De
             session.add(transaction)
             await session.commit()
             
+            # Send Deposit Email
+            user = await session.get(User, wallet.user_id)
+            if user:
+                send_email_task.delay(
+                     email_to=user.email,
+                     subject="Deposit Confirmed",
+                     html_template="deposit_success.html",
+                     environment={
+                         "project_name": "Contri",
+                         "name": user.first_name,
+                         "currency": "NGN",
+                         "amount": f"{transaction.amount / 100:,.2f}",
+                         "transaction_reference": reference,
+                         "date": transaction.created_at.strftime("%Y-%m-%d %H:%M"),
+                         "dashboard_link": "https://contri.app/dashboard"
+                     }
+                )
+
             logger.info(f"Transaction {reference} processed successfully")
             return {"status": "success"}
             

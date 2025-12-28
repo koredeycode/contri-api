@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block preheader %}Your circle has officially started!{% endblock %}
+
+{% block content %}
+<h2>{{ circle_name }} is Live! 🚀</h2>
+<p>Hello {{ name }},</p>
+<p>
+    Great news! The circle <strong>{{ circle_name }}</strong> has reached its target and has officially started.
+</p>
+<p>
+    <strong>Details:</strong><br>
+    Start Date: {{ start_date }}<br>
+    Contribution: {{ currency }} {{ amount }}<br>
+    Frequency: {{ frequency }}
+</p>
+<p>
+    Please ensure your wallet is funded for the first contribution cycle.
+</p>
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" class="btn btn-primary">
+    <tbody>
+        <tr>
+            <td align="left">
+                <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                    <tbody>
+                        <tr>
+                            <td> <a href="{{ circle_link }}" target="_blank">View Circle</a> </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </td>
+        </tr>
+    </tbody>
+</table>
+{% endblock %}

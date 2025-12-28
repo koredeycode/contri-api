@@ -19,6 +19,7 @@ from app.core.config import settings
 from app.utils.financials import calculate_current_cycle
 
 router = APIRouter()
+from app.worker import send_email_task
 
 @router.post("/", response_model=APIResponse[CircleRead])
 async def create_circle(
@@ -151,6 +152,49 @@ async def join_circle(
     session.add(new_member)
     await session.commit()
     
+    # Send Joined Email
+    send_email_task.delay(
+        email_to=current_user.email,
+        subject=f"You joined {circle.name}",
+        html_template="circle_joined.html",
+        environment={
+             "project_name": "Contri",
+             "name": current_user.first_name,
+             "circle_name": circle.name,
+             "currency": "NGN",
+             "amount": f"{circle.amount / 100:,.2f}",
+             "frequency": circle.frequency,
+             "payout_order": next_order,
+             "circle_link": f"https://contri.app/circles/{circle.id}"
+        }
+    )
+
+    # Notify Host
+    query = select(CircleMember).where(
+        CircleMember.circle_id == circle.id,
+        CircleMember.role == "host"
+    )
+    result = await session.execute(query)
+    host = result.scalar_one_or_none()
+
+    if host:
+         host_user = await session.get(User, host.user_id)
+         if host_user:
+             send_email_task.delay(
+                email_to=host_user.email,
+                subject=f"New Member Joined {circle.name}",
+                html_template="member_joined.html",
+                environment={
+                     "project_name": "Contri",
+                     "name": host_user.first_name,
+                     "member_name": current_user.first_name,
+                     "circle_name": circle.name,
+                     "current_members": len(members) + 1, # +1 for the new member
+                     "target_members": circle.target_members or "Unlimited",
+                     "circle_link": f"https://contri.app/circles/{circle.id}"
+                }
+             )
+
     return APIResponse(message="Joined circle successfully", data={"circle_id": circle.id})
 
 @router.patch("/{circle_id}", response_model=APIResponse[CircleRead])
@@ -345,6 +389,33 @@ async def start_circle(
     session.add(circle)
     await session.commit()
     await session.refresh(circle)
+    
+    # Notify all members
+    # Optimize: Fetch all users in one query
+    member_user_ids = [m.user_id for m in members]
+    query = select(User).where(User.id.in_(member_user_ids))
+    result = await session.execute(query)
+    users = result.scalars().all()
+    user_map = {u.id: u for u in users}
+
+    for member in members:
+         member_user = user_map.get(member.user_id)
+         if member_user:
+             send_email_task.delay(
+                email_to=member_user.email,
+                subject=f"{circle.name} has started! 🚀",
+                html_template="circle_started.html",
+                environment={
+                     "project_name": "Contri",
+                     "name": member_user.first_name,
+                     "circle_name": circle.name,
+                     "start_date": circle.cycle_start_date.strftime("%Y-%m-%d"),
+                     "currency": "NGN",
+                     "amount": f"{circle.amount / 100:,.2f}",
+                     "frequency": circle.frequency,
+                     "circle_link": f"https://contri.app/circles/{circle.id}"
+                }
+             )
     
     return APIResponse(message="Circle started successfully", data=circle)
 
@@ -545,6 +616,42 @@ async def contribute_to_circle(
 
     await session.commit()
     
+    # Send Contribution Email
+    send_email_task.delay(
+        email_to=current_user.email,
+        subject=f"Contribution Received - {circle.name}",
+        html_template="contribution_success.html",
+        environment={
+             "project_name": "Contri",
+             "name": current_user.first_name,
+             "amount": f"{circle.amount / 100:,.2f}",
+             "currency": "NGN",
+             "cycle": current_cycle,
+             "circle_name": circle.name,
+             "date": datetime.now().strftime("%Y-%m-%d"),
+             "circle_link": f"https://contri.app/circles/{circle.id}"
+        }
+    )
+    
+    # Send Payout Email
+    if payout_triggered and recipient_member:
+        recipient_user = await session.get(User, recipient_member.user_id)
+        if recipient_user:
+             send_email_task.delay(
+                email_to=recipient_user.email,
+                subject=f"Payout Received from {circle.name}!",
+                html_template="payout_received.html",
+                environment={
+                     "project_name": "Contri",
+                     "name": recipient_user.first_name,
+                     "amount": f"{(circle.amount * total_members_count) / 100:,.2f}",
+                     "currency": "NGN",
+                     "cycle": current_cycle,
+                     "circle_name": circle.name,
+                     "dashboard_link": "https://contri.app/wallet"
+                }
+             )
+
     return APIResponse(
         message="Contribution successful", 
         data={
