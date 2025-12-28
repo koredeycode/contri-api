@@ -30,3 +30,23 @@ def get_password_hash(password: str) -> str:
     """
     salt = bcrypt.gensalt()
     return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
+
+def create_verification_token(subject: str | Any) -> str:
+    """
+    Creates a JWT verification token for the given subject.
+    Lasts 24 hours.
+    """
+    expire = datetime.now(timezone.utc) + timedelta(hours=24)
+    to_encode = {"exp": expire, "sub": str(subject), "type": "verification"}
+    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return encoded_jwt
+
+def verify_token(token: str) -> str | None:
+    """
+    Verifies a token and returns the subject (user_id) if valid.
+    """
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        return payload.get("sub")
+    except jwt.JWTError:
+        return None

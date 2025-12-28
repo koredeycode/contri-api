@@ -19,12 +19,14 @@ router = APIRouter()
 async def get_notifications(
     request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)]
+    session: Annotated[AsyncSession, Depends(get_db)],
+    skip: int = 0,
+    limit: int = 50
 ):
     """
     Retrieve all notifications for the current user.
     """
-    query = select(Notification).where(Notification.user_id == current_user.id).order_by(Notification.id.desc())
+    query = select(Notification).where(Notification.user_id == current_user.id).order_by(Notification.id.desc()).offset(skip).limit(limit)
     result = await session.execute(query)
     return APIResponse(message="Notifications retrieved", data=result.scalars().all())
 

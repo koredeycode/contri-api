@@ -9,7 +9,6 @@ import re
 from app.core.config import settings
 import logging
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class EmailService:
@@ -45,33 +44,33 @@ class EmailService:
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                logger.info(f"Connecting to SMTP server: {settings.SMTP_HOST}:{settings.SMTP_PORT} (Attempt {attempt+1}/{max_retries})")
+                # logger.info(f"Connecting to SMTP server: {settings.SMTP_HOST}:{settings.SMTP_PORT} (Attempt {attempt+1}/{max_retries})")
                 with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=60) as server:
-                    server.set_debuglevel(1) # Enable debug output to stdout for diagnostics
+                    # server.set_debuglevel(1) # Enable debug output to stdout for diagnostics
                     
-                    logger.debug("Sending EHLO")
+                    # logger.debug("Sending EHLO")
                     server.ehlo()
                     
                     if settings.SMTP_TLS:
-                        logger.debug("Starting TLS")
+                        # logger.debug("Starting TLS")
                         server.starttls()
-                        logger.debug("Sending EHLO after TLS")
+                        # logger.debug("Sending EHLO after TLS")
                         server.ehlo()
                     
                     if settings.SMTP_USER and settings.SMTP_PASSWORD:
-                        logger.debug("Logging in")
+                        # logger.debug("Logging in")
                         server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
                     
                     # Use lower-level commands to capture response
-                    logger.debug(f"Sending MAIL FROM: {settings.EMAILS_FROM_EMAIL}")
+                    # logger.debug(f"Sending MAIL FROM: {settings.EMAILS_FROM_EMAIL}")
                     server.mail(settings.EMAILS_FROM_EMAIL)
                     
-                    logger.debug(f"Sending RCPT TO: {email_to}")
+                    # logger.debug(f"Sending RCPT TO: {email_to}")
                     code, resp = server.rcpt(email_to)
                     if code not in (250, 251):
                         raise Exception(f"Failed to set recipient: {code} {resp}")
                     
-                    logger.debug("Sending DATA")
+                    # logger.debug("Sending DATA")
                     (code, resp) = server.data(msg.as_string())
                     
                     if code != 250:

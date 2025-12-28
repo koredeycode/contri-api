@@ -56,6 +56,9 @@ async def create_user(request: Request, *, session: Annotated[AsyncSession, Depe
     await session.refresh(user)
 
     # Send Welcome Email
+    verification_token = security.create_verification_token(user.id)
+    verify_link = f"https://contri.app/verify?token={verification_token}"
+    
     send_email_task.delay(
         email_to=user.email,
         subject="Welcome to Contri!",
@@ -63,11 +66,38 @@ async def create_user(request: Request, *, session: Annotated[AsyncSession, Depe
         environment={
             "project_name": settings.PROJECT_NAME,
             "name": f"{user.first_name}",
-            "link": "https://contri.app/verify" # Placeholder
+            "link": verify_link
         }
     )
 
     return APIResponse(message="User created successfully", data=user)
+
+@router.post("/verify-email", response_model=APIResponse[dict])
+@limiter.limit("5/minute")
+async def verify_email(
+    request: Request,
+    token: str,
+    session: Annotated[AsyncSession, Depends(deps.get_db)]
+) -> Any:
+    """
+    Verify user email using the token sent in the welcome email.
+    """
+    user_id = security.verify_token(token)
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification token")
+    
+    user = await session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    if user.is_verified:
+        return APIResponse(message="Email already verified", data={"verified": True})
+        
+    user.is_verified = True
+    session.add(user)
+    await session.commit()
+    
+    return APIResponse(message="Email verified successfully", data={"verified": True})
 
 @router.post("/login", response_model=APIResponse[Token])
 @limiter.limit("5/minute")
@@ -146,6 +176,7 @@ async def google_login(request: Request, session: Annotated[AsyncSession, Depend
 
     user = await get_or_create_social_user(session, email, "google", social_id, first_name, last_name)
     return APIResponse(message="Google login successful", data=Token(access_token=security.create_access_token(user.id), token_type="bearer"))
+
 
 @router.post("/social/apple", response_model=APIResponse[Token])
 @limiter.limit("5/minute")
