@@ -2,17 +2,18 @@ import asyncio
 import logging
 import uuid
 import random
-from decimal import Decimal
 from datetime import datetime, timezone, timedelta
+from faker import Faker
 
 from sqlalchemy import text
-from sqlalchemy.future import select
 from app.db.session import AsyncSessionLocal
 from app.models.user import User
 from app.models.wallet import Wallet, BankAccount, Card
 from app.models.circle import Circle, CircleMember, Contribution
+from app.models.transaction import Transaction
 from app.models.notification import Notification
 from app.models.chat import ChatMessage
+from app.models.enums import TransactionType, TransactionStatus, ContributionStatus, CircleStatus
 from app.core.security import get_password_hash
 
 logging.basicConfig(level=logging.INFO)
@@ -21,12 +22,17 @@ logger = logging.getLogger(__name__)
 # Constants
 PASSWORD = "password123"
 hashed_password = get_password_hash(PASSWORD)
+fake = Faker()
+
+def get_utc_now():
+    """Returns a naive UTC datetime."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 async def seed_data():
     async with AsyncSessionLocal() as session:
         # 0. Clear Database
         logger.info("Clearing database...")
-        await session.execute(text('TRUNCATE TABLE "user", wallet, bankaccount, card, circle, circlemember, contribution, notification, chatmessage RESTART IDENTITY CASCADE'))
+        await session.execute(text('TRUNCATE TABLE "user", wallet, bankaccount, card, circle, circlemember, contribution, transaction, notification, chatmessage RESTART IDENTITY CASCADE'))
         await session.commit()
         logger.info("Database cleared.")
 
@@ -78,18 +84,22 @@ async def seed_data():
         session.add(jane)
         users.append(jane)
 
-        # Additional Random Users
+        # Generate 50 Random Users
         extra_users = []
-        names = [("Michael", "Brown"), ("Emily", "Davis"), ("David", "Wilson"), ("Sarah", "Taylor"), ("Chris", "Anderson")]
-        for i, (first, last) in enumerate(names):
+        for i in range(50):
+            profile = fake.simple_profile()
+            first_name = profile['name'].split()[0]
+            last_name = profile['name'].split()[-1]
+            email = f"user{i}_{profile['username']}@example.com"
+            
             user = User(
-                email=f"{first.lower()}.{last.lower()}@example.com",
+                email=email,
                 hashed_password=hashed_password,
-                first_name=first,
-                last_name=last,
+                first_name=first_name,
+                last_name=last_name,
                 role="user",
-                referral_code=f"{first.upper()[:3]}{last.upper()[:1]}00{i+1}",
-                phone_number=f"+234800000000{i+3}",
+                referral_code=f"REF{uuid.uuid4().hex[:6].upper()}",
+                phone_number=f"+2348{str(random.randint(10000000, 99999999))}",
                 is_verified=True,
                 is_active=True
             )
@@ -98,29 +108,26 @@ async def seed_data():
             extra_users.append(user)
         
         await session.commit()
-        # Refresh to get IDs
         for u in users:
             await session.refresh(u)
         
         logger.info(f"Created {len(users)} users.")
 
-        # 2. Wallets, Banks & Cards (For ALL Users)
-        logger.info("Creating financial data for all users...")
+        # 2. Wallets, Banks & Cards
+        logger.info("Creating financial data...")
         banks_list = [
             ("Access Bank", "044"), ("GTBank", "058"), ("Zenith Bank", "057"), ("UBA", "033"), ("First Bank", "011"), ("Kuda Bank", "090267")
         ]
         
         for i, user in enumerate(users):
-            # Wallet
-            # Admin gets more, John/Jane get specific, others get random
             if user.role == "admin":
-                balance = Decimal("1000000.00")
+                balance = 100_000_000
             elif user == john:
-                balance = Decimal("150000.00")
+                balance = 15_000_000
             elif user == jane:
-                balance = Decimal("75000.00")
+                balance = 7_500_000
             else:
-                balance = Decimal(random.randint(20000, 100000))
+                balance = random.randint(5_000_000, 50_000_000)
 
             wallet = Wallet(
                 user_id=user.id,
@@ -128,9 +135,20 @@ async def seed_data():
                 currency="NGN"
             )
             session.add(wallet)
+            await session.commit()
+            await session.refresh(wallet)
 
-            # Bank Accounts - Everyone gets at least one
-            # Give some users multiple banks
+            deposit_txn = Transaction(
+                wallet_id=wallet.id,
+                amount=balance,
+                type=TransactionType.DEPOSIT,
+                status=TransactionStatus.SUCCESS,
+                reference=f"DEP_{uuid.uuid4().hex[:12]}",
+                description="Initial wallet funding",
+                created_at=get_utc_now() - timedelta(days=60)
+            )
+            session.add(deposit_txn)
+
             num_banks = 1 if i % 3 != 0 else 2 
             files_banks = random.sample(banks_list, num_banks)
             
@@ -138,7 +156,7 @@ async def seed_data():
                 bank = BankAccount(
                     user_id=user.id,
                     bank_name=b_name,
-                    account_number=f"012{user.phone_number[-4:]}{j}{i}", # Generating semi-unique numbers
+                    account_number=f"012{str(random.randint(10000000, 99999999))}",
                     account_name=f"{user.first_name} {user.last_name}",
                     bank_code=b_code,
                     is_primary=(j == 0),
@@ -146,7 +164,6 @@ async def seed_data():
                 )
                 session.add(bank)
 
-            # Cards - Everyone gets at least one
             card_brand = "visa" if i % 2 == 0 else "mastercard"
             card = Card(
                 user_id=user.id,
@@ -163,14 +180,13 @@ async def seed_data():
 
         # 3. Circles
         logger.info("Creating circles...")
-        
-        # A. Active Circle: "Family Saving" (John Host)
+        # Keep static 3 circles for predictable testing
         circle_family = Circle(
             name="Family Saving",
-            amount=Decimal("20000.00"),
+            amount=2_000_000,
             frequency="monthly",
-            cycle_start_date=(datetime.now(timezone.utc) - timedelta(days=45)).replace(tzinfo=None),
-            status="active",
+            cycle_start_date=get_utc_now() - timedelta(days=45),
+            status=CircleStatus.ACTIVE,
             invite_code="FAM001",
             description="Saving for the rainy days.",
             target_members=5,
@@ -180,56 +196,36 @@ async def seed_data():
         await session.commit()
         await session.refresh(circle_family)
 
-        # Members for Family Circle
-        fam_members = [john, jane, extra_users[0]] # 3 members
+        fam_members = [john, jane, extra_users[0]] 
         for idx, member in enumerate(fam_members):
             cm = CircleMember(
                 user_id=member.id,
                 circle_id=circle_family.id,
                 payout_order=idx + 1,
                 role="host" if member == john else "member",
-                join_date=(datetime.now(timezone.utc) - timedelta(days=50)).replace(tzinfo=None)
+                join_date=get_utc_now() - timedelta(days=50)
             )
             session.add(cm)
         
-        # Contributions for Family Circle
-        # Cycle 1
+        # Family Contributions
         for member in fam_members:
             c = Contribution(
                 circle_id=circle_family.id,
                 user_id=member.id,
                 cycle_number=1,
                 amount=circle_family.amount,
-                status="paid",
-                paid_at=(datetime.now(timezone.utc) - timedelta(days=40)).replace(tzinfo=None)
+                status=ContributionStatus.PAID,
+                paid_at=get_utc_now() - timedelta(days=40)
             )
             session.add(c)
-        
-        # Cycle 2
-        for member in fam_members:
-            status = "pending"
-            paid_at = None
-            if member in [john, jane]:
-                status = "paid"
-                paid_at = (datetime.now(timezone.utc) - timedelta(days=5)).replace(tzinfo=None)
-            
-            c = Contribution(
-                circle_id=circle_family.id,
-                user_id=member.id,
-                cycle_number=2,
-                amount=circle_family.amount,
-                status=status,
-                paid_at=paid_at
-            )
-            session.add(c)
+            # Add transaction logic simplified for speed...
 
-        # B. Pending Circle: "Co-workers" (Jane Host)
         circle_coworkers = Circle(
             name="Co-workers",
-            amount=Decimal("50000.00"),
+            amount=5_000_000,
             frequency="monthly",
             cycle_start_date=None,
-            status="pending",
+            status=CircleStatus.PENDING,
             invite_code="WORK01",
             description="Office monthly thrift",
             target_members=10,
@@ -246,17 +242,16 @@ async def seed_data():
                 circle_id=circle_coworkers.id,
                 payout_order=idx + 1,
                 role="host" if member == jane else "member",
-                join_date=(datetime.now(timezone.utc) - timedelta(hours=idx)).replace(tzinfo=None)
+                join_date=get_utc_now() - timedelta(hours=idx)
             )
             session.add(cm)
 
-        # C. Completed Circle: "Holiday Fund" (Admin Host)
         circle_holiday = Circle(
             name="Holiday Fund 2024",
-            amount=Decimal("10000.00"),
+            amount=1_000_000,
             frequency="weekly",
-            cycle_start_date=(datetime.now(timezone.utc) - timedelta(days=100)).replace(tzinfo=None),
-            status="completed",
+            cycle_start_date=get_utc_now() - timedelta(days=100),
+            status=CircleStatus.COMPLETED,
             invite_code="HOL24",
             description="Saved for Dec 2024 Holidays",
             target_members=3,
@@ -273,122 +268,100 @@ async def seed_data():
                 circle_id=circle_holiday.id,
                 payout_order=idx + 1,
                 role="host" if member == admin else "member",
-                join_date=(datetime.now(timezone.utc) - timedelta(days=110)).replace(tzinfo=None)
+                join_date=get_utc_now() - timedelta(days=110)
             )
             session.add(cm)
+
+        # Generate 15 Random Circles
+        all_circles = [circle_family, circle_coworkers, circle_holiday]
         
-        # Generate 4 completed cycles
-        for cycle in range(1, 5):
-            for member in hol_members:
-                c = Contribution(
-                    circle_id=circle_holiday.id,
+        for i in range(15):
+            host = random.choice(users)
+            status = random.choice([CircleStatus.PENDING, CircleStatus.ACTIVE, CircleStatus.COMPLETED])
+            amount = random.choice([500000, 1000000, 2000000, 5000000, 10000000]) # 5k - 100k
+            
+            cycle_start = None
+            if status != CircleStatus.PENDING:
+                cycle_start = get_utc_now() - timedelta(days=random.randint(10, 100))
+
+            circle = Circle(
+                name=f"{fake.word().capitalize()} Circle",
+                amount=amount,
+                frequency=random.choice(["weekly", "biweekly", "monthly"]),
+                cycle_start_date=cycle_start,
+                status=status,
+                invite_code=uuid.uuid4().hex[:8].upper(),
+                description=fake.sentence(),
+                target_members=random.randint(3, 10),
+                payout_preference=random.choice(["fixed", "random"])
+            )
+            session.add(circle)
+            await session.commit() # Commit to get ID
+            await session.refresh(circle)
+            all_circles.append(circle)
+
+            # Members
+            num_members = random.randint(2, circle.target_members or 5)
+            potential_members = [u for u in users if u != host]
+            members = [host] + random.sample(potential_members, min(len(potential_members), num_members - 1))
+            
+            for m_idx, member in enumerate(members):
+                cm = CircleMember(
                     user_id=member.id,
-                    cycle_number=cycle,
-                    amount=circle_holiday.amount,
-                    status="paid",
-                    paid_at=(datetime.now(timezone.utc) - timedelta(days=100 - (cycle * 7))).replace(tzinfo=None)
+                    circle_id=circle.id,
+                    payout_order=m_idx + 1,
+                    role="host" if member == host else "member",
+                    join_date=get_utc_now() - timedelta(days=random.randint(1, 30))
                 )
-                session.add(c)
+                session.add(cm)
         
         await session.commit()
+        logger.info(f"Created {len(all_circles)} total circles.")
 
-        # 4. Chat Messages
+        # 4. Chats (Heavy Generation)
         logger.info("Creating chat messages...")
         
-        # Family Circle Chat
-        msgs_fam = [
-            (john, "Welcome to the family circle everyone!", 44),
-            (jane, "Thanks John, happy to be starting this.", 43),
-            (extra_users[0], "Let's save!", 42),
-            (john, "Just sent my payment for this month.", 5),
-            (jane, "Received notification, I've paid mine too.", 4),
-        ]
-        
-        for user, content, days_ago in msgs_fam:
-            msg = ChatMessage(
-                circle_id=circle_family.id,
-                user_id=user.id,
-                content=content,
-                timestamp=(datetime.now(timezone.utc) - timedelta(days=days_ago)).replace(tzinfo=None),
-                message_type="text"
-            )
-            session.add(msg)
-
-        # Co-workers Circle Chat
-        msgs_work = [
-            (jane, "Hi team, invite sent to everyone.", 1),
-            (extra_users[1], "Got it, joined!", 0),
-            (extra_users[2], "What's the payout order?", 0),
-            (jane, "Randomized for now, we can discuss.", 0),
-        ]
-
-        for user, content, days_ago in msgs_work:
-            msg = ChatMessage(
-                circle_id=circle_coworkers.id,
-                user_id=user.id,
-                content=content,
-                timestamp=(datetime.now(timezone.utc) - timedelta(days=days_ago)).replace(tzinfo=None),
-                message_type="text"
-            )
-            session.add(msg)
-
-        await session.commit()
-
-        # 5. Notifications (More comprehensive)
-        logger.info("Creating comprehensive notifications...")
-        
-        # System-wide notifications for everyone
-        global_notifs = [
-            ("Welcome to Contri!", "We're glad to have you here. Set up your wallet to start.", "info", "high"),
-            ("New Feature Alert", "You can now chat with your circle members directly in the app!", "info", "normal"),
-            ("Security Update", "Please enable 2FA for enhanced security.", "info", "normal")
-        ]
-
-        for user in users:
-            for title, body, n_type, priority in global_notifs:
-                n = Notification(
-                    user_id=user.id,
-                    title=title,
-                    body=body,
-                    type=n_type,
-                    is_read=random.choice([True, False]),
-                    priority=priority
+        total_msgs = 0
+        for circle in all_circles:
+            # Query members for this circle
+            res = await session.execute(text(f"SELECT user_id FROM circlemember WHERE circle_id = '{circle.id}'"))
+            member_ids = [row[0] for row in res.fetchall()]
+            
+            num_msgs = random.randint(5, 50)
+            
+            for _ in range(num_msgs):
+                sender_id = random.choice(member_ids)
+                msg_content = fake.sentence()
+                days_ago = random.randint(0, 30)
+                
+                msg = ChatMessage(
+                    circle_id=circle.id,
+                    user_id=sender_id,
+                    content=msg_content,
+                    timestamp=get_utc_now() - timedelta(days=days_ago, minutes=random.randint(0, 1440)),
+                    message_type="text"
                 )
-                session.add(n)
-
-        # Specific notifications
-        # John - Activity
-        session.add(Notification(
-            user_id=john.id,
-            title="Contribution Received",
-            body="Jane just made a contribution to Family Saving.",
-            type="success",
-            is_read=False
-        ))
-        
-        # Jane - Invite
-        session.add(Notification(
-            user_id=jane.id,
-            title="Circle Invitation",
-            body="John invited you to join 'Family Saving'.",
-            type="action_required",
-            action_url=f"/circle/{circle_family.id}",
-            is_read=True
-        ))
-
-        # Random user - Payment Due
-        session.add(Notification(
-            user_id=extra_users[0].id,
-            title="Payment Reminder",
-            body="Your contribution for Family Saving is due in 3 days.",
-            type="warning",
-            priority="high",
-            is_read=False
-        ))
-
+                session.add(msg)
+                total_msgs += 1
+            
         await session.commit()
-        logger.info("Notifications created.")
+        logger.info(f"Created {total_msgs} chat messages.")
+
+        # 5. Notifications
+        logger.info("Creating notifications...")
+        for user in users:
+            for _ in range(random.randint(2, 5)):
+                 n = Notification(
+                    user_id=user.id,
+                    title=fake.catch_phrase(),
+                    body=fake.sentence(),
+                    type="info",
+                    is_read=random.choice([True, False]),
+                    created_at=get_utc_now() - timedelta(days=random.randint(0, 10))
+                )
+                 session.add(n)
         
+        await session.commit()
         logger.info("SEEDING COMPLETE! 🚀")
 
 if __name__ == "__main__":

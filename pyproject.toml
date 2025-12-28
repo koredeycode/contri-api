@@ -49,3 +49,8 @@ testpaths = ["tests"]
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
 
+[dependency-groups]
+dev = [
+    "faker>=39.0.0",
+]
+

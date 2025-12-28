@@ -1,5 +1,6 @@
 from typing import Annotated, List, Any
 import uuid
+import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
@@ -17,11 +18,13 @@ router = APIRouter()
 async def get_circle_messages(
     circle_id: uuid.UUID,
     current_user: Annotated[User, Depends(deps.get_current_user)],
-    session: Annotated[AsyncSession, Depends(deps.get_db)]
+    session: Annotated[AsyncSession, Depends(deps.get_db)],
+    before: datetime.datetime | None = None
 ) -> Any:
     """
     Retrieve message history for a circle.
-    Only members of the circle can view messages.
+    Returns latest 100 messages. 
+    Use 'before' timestamp (ISO format) to paginate backwards.
     """
     # Verify membership
     membership = await session.execute(
@@ -34,11 +37,21 @@ async def get_circle_messages(
         raise HTTPException(status_code=403, detail="Not a member of this circle")
 
     # Fetch messages with sender info
-    query = select(ChatMessage, User).join(User, ChatMessage.user_id == User.id).where(ChatMessage.circle_id == circle_id).order_by(ChatMessage.timestamp.asc())
+    # Cursor pagination: WHERE timestamp < before ORDER BY timestamp DESC LIMIT 100
+    query = select(ChatMessage, User).join(User, ChatMessage.user_id == User.id)\
+        .where(ChatMessage.circle_id == circle_id)
+        
+    if before:
+        query = query.where(ChatMessage.timestamp < before)
+
+    query = query.order_by(ChatMessage.timestamp.desc())\
+        .limit(100)
+    
     result = await session.execute(query)
+    rows = result.all()
     
     message_list = []
-    for message, user in result:
+    for message, user in rows:
         msg_read = ChatMessageRead(
             id=message.id,
             circle_id=message.circle_id,
@@ -50,8 +63,9 @@ async def get_circle_messages(
             sender_name=f"{user.first_name} {user.last_name}"
         )
         message_list.append(msg_read)
-        
-    return APIResponse(message="Messages retrieved", data=message_list)
+    
+    # Reverse to return in chronological order (oldest -> newest)
+    return APIResponse(message="Messages retrieved", data=message_list[::-1])
 
 @router.post("/{circle_id}", response_model=APIResponse[ChatMessageRead])
 async def send_message(

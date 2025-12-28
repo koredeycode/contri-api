@@ -529,6 +529,11 @@ dev = [
     { name = "ruff" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "faker" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "alembic", specifier = ">=1.13.1" },
@@ -556,6 +561,9 @@ requires-dist = [
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.29.0" },
 ]
 provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "faker", specifier = ">=39.0.0" }]
 
 [[package]]
 name = "cryptography"
