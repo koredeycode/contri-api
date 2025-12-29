@@ -71,17 +71,30 @@ async def test_chat_pagination(client: AsyncClient, session):
     assert data[-1]["content"] == "Message 14" # Newest
     assert data[0]["content"] == "Message 0"   # Oldest
     
-    # Case B: Pagination using 'before' cursor
-    # Get messages before Message 10.
-    cursor_timestamp = data[10]["timestamp"] # Timestamp of Message 10
+    # Case B: Pagination using page/limit
+    # Get 2nd page with limit 5 (Messages 5-9)
+    # Total 15 messages. 
+    # Page 1 (limit 5): 10-14 (Newest first)
+    # Page 2 (limit 5): 5-9
+    # Page 3 (limit 5): 0-4
     
     resp = await client.get(
-        f"{settings.API_V1_STR}/chat/{circle.id}?before={cursor_timestamp}",
+        f"{settings.API_V1_STR}/chat/{circle.id}?page=2&limit=5",
         headers=headers
     )
     assert resp.status_code == 200
     data_page = resp.json()["data"]
-    # Messages with timestamp < Msg10 timestamp are Msg0..Msg9 (10 messages)
-    assert len(data_page) == 10
+    assert len(data_page) == 5
+    
+    # Check content. 
+    # Ordered by timestamp desc.
+    # Full list (indices): 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0
+    # Page 1: 14-10
+    # Page 2: 9-5
+    
+    # API returns messages in chronological order (reversed from the query).
+    # Page 2 chunk (desc): 9, 8, 7, 6, 5
+    # Reversed: 5, 6, 7, 8, 9
+    
+    assert data_page[0]["content"] == "Message 5"
     assert data_page[-1]["content"] == "Message 9"
-    assert data_page[0]["content"] == "Message 0"

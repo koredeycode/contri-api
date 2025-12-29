@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
+from app.api import deps
 from app.api.deps import get_current_user, get_db
 from app.models.user import User
 from app.models.notification import Notification
@@ -20,13 +21,12 @@ async def get_notifications(
     request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
-    skip: int = 0,
-    limit: int = 50
+    pagination: Annotated[deps.PageParams, Depends()]
 ):
     """
     Retrieve all notifications for the current user.
     """
-    query = select(Notification).where(Notification.user_id == current_user.id).order_by(Notification.id.desc()).offset(skip).limit(limit)
+    query = select(Notification).where(Notification.user_id == current_user.id).order_by(Notification.id.desc()).offset(pagination.offset).limit(pagination.limit)
     result = await session.execute(query)
     return APIResponse(message="Notifications retrieved", data=result.scalars().all())
 

@@ -83,8 +83,7 @@ async def get_transactions(
     request: Request,
     session: Annotated[AsyncSession, Depends(deps.get_db)],
     current_user: Annotated[User, Depends(deps.get_current_user)],
-    skip: int = 0,
-    limit: int = 50,
+    pagination: Annotated[deps.PageParams, Depends()],
 ):
     """
     Get user transactions.
@@ -96,7 +95,7 @@ async def get_transactions(
 
     result = await session.execute(
         select(Transaction).where(Transaction.wallet_id == wallet.id)
-        .offset(skip).limit(limit).order_by(Transaction.created_at.desc())
+        .offset(pagination.offset).limit(pagination.limit).order_by(Transaction.created_at.desc())
     )
     transactions = result.scalars().all()
     return APIResponse(message="Transactions retrieved", data=transactions)

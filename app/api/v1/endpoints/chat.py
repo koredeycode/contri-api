@@ -22,12 +22,12 @@ async def get_circle_messages(
     circle_id: uuid.UUID,
     current_user: Annotated[User, Depends(deps.get_current_user)],
     session: Annotated[AsyncSession, Depends(deps.get_db)],
-    before: datetime.datetime | None = None
+    pagination: Annotated[deps.PageParams, Depends()]
 ) -> Any:
     """
     Retrieve message history for a circle.
     Returns latest 100 messages. 
-    Use 'before' timestamp (ISO format) to paginate backwards.
+    Use page and limit for pagination.
     """
     # Verify membership
     membership = await session.execute(
@@ -40,15 +40,12 @@ async def get_circle_messages(
         raise HTTPException(status_code=403, detail="Not a member of this circle")
 
     # Fetch messages with sender info
-    # Cursor pagination: WHERE timestamp < before ORDER BY timestamp DESC LIMIT 100
     query = select(ChatMessage, User).join(User, ChatMessage.user_id == User.id)\
         .where(ChatMessage.circle_id == circle_id)
         
-    if before:
-        query = query.where(ChatMessage.timestamp < before)
-
     query = query.order_by(ChatMessage.timestamp.desc())\
-        .limit(100)
+        .offset(pagination.offset)\
+        .limit(pagination.limit)
     
     result = await session.execute(query)
     rows = result.all()

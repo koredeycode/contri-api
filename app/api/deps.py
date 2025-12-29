@@ -9,6 +9,20 @@ from app.core.config import settings
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.token import TokenPayload
+from fastapi import Query
+
+class PageParams:
+    def __init__(
+        self,
+        page: Annotated[int, Query(ge=1, description="Page number")] = 1,
+        limit: Annotated[int, Query(ge=1, le=100, description="Items per page")] = 50,
+    ):
+        self.page = page
+        self.limit = limit
+    
+    @property
+    def offset(self) -> int:
+        return (self.page - 1) * self.limit
 
 reuseable_oauth2 = HTTPBearer(auto_error=True)
 
