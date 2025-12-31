@@ -13,7 +13,7 @@ from app.models.circle import Circle, CircleMember, Contribution
 from app.models.wallet import Wallet
 from app.models.transaction import Transaction
 from app.models.enums import ContributionStatus, TransactionType, TransactionStatus
-from app.schemas.circle import CircleCreate, CircleRead, CircleUpdate, CircleMemberRead, CircleMemberReorder
+from app.schemas.circle import CircleCreate, CircleRead, CircleUpdate, CircleMemberRead, CircleMemberReorder, CircleProgress, ContributionProgress
 from app.schemas.response import APIResponse
 from app.core.config import settings
 from app.utils.financials import calculate_current_cycle
@@ -62,6 +62,11 @@ async def create_circle(
         join_date=datetime.now()
     )
     session.add(member)
+    
+    # Create Circle Wallet
+    circle_wallet = Wallet(circle_id=circle.id, balance=0, currency="NGN")
+    session.add(circle_wallet)
+    
     await session.commit()
     
     return APIResponse(message="Circle created successfully", data=circle)
@@ -109,7 +114,108 @@ async def get_circle(
     if not member:
         raise HTTPException(status_code=403, detail="Not a member of this circle")
         
-    return APIResponse(message="Circle details retrieved", data=circle)
+    # Lazy Update of Cycle (if active)
+    if circle.status == "active":
+        calculated_cycle = calculate_current_cycle(circle)
+        
+        # Get total members for cap check
+        query = select(CircleMember).where(CircleMember.circle_id == circle_id)
+        result = await session.execute(query)
+        members_list = result.scalars().all()
+        total_members = len(members_list)
+        
+        # Ensure cycle is at least 1 if active
+        current_cycle = max(circle.current_cycle, 1)
+        
+        if calculated_cycle > current_cycle:
+             # Cap at total members
+             new_cycle = min(calculated_cycle, total_members)
+             if new_cycle > current_cycle:
+                 circle.current_cycle = new_cycle
+                 session.add(circle)
+                 await session.commit()
+                 await session.refresh(circle)
+    
+    # Refresh to get latest cycle
+    current_cycle = circle.current_cycle
+
+    # Fetch Members with User details
+    query = select(CircleMember, User).join(User, CircleMember.user_id == User.id).where(CircleMember.circle_id == circle_id).order_by(CircleMember.payout_order)
+    result = await session.execute(query)
+    members_with_users = result.all()
+    
+    # Fetch Contributions for current cycle
+    query = select(Contribution).where(
+        Contribution.circle_id == circle_id,
+        Contribution.cycle_number == current_cycle,
+        Contribution.status == ContributionStatus.PAID
+    )
+    result = await session.execute(query)
+    paid_contributions = result.scalars().all()
+    contributions_map = {c.user_id: c for c in paid_contributions}
+    
+    # Build Response Data
+    members_read = []
+    progress_list = []
+    paid_count = 0
+    total_members = len(members_with_users)
+    
+    for member_info, user in members_with_users:
+        # Build Member Read
+        m_read = CircleMemberRead.model_validate(member_info)
+        members_read.append(m_read)
+        
+        # Build Contribution Progress
+        contribution = contributions_map.get(member_info.user_id)
+        status = ContributionStatus.PAID if contribution else ContributionStatus.PENDING
+        paid_at = contribution.paid_at if contribution else None
+        
+        if contribution:
+            paid_count += 1
+            
+        progress_list.append(ContributionProgress(
+            user_id=user.id,
+            user_name=f"{user.first_name} {user.last_name}",
+            payout_order=member_info.payout_order,
+            status=status,
+            paid_at=paid_at
+        ))
+        
+    collected_amount = paid_count * circle.amount
+    expected_amount = total_members * circle.amount
+    
+    # Payout Receiver
+    target_order = current_cycle
+    recipient_id = None
+    recipient_name = None
+    
+    if target_order > 0:
+        if target_order > total_members: 
+            target_order = ((target_order - 1) % total_members) + 1
+            
+        recipient_tuple = next((item for item in members_with_users if item[0].payout_order == target_order), None)
+        if recipient_tuple:
+            recipient_id = recipient_tuple[1].id
+            recipient_name = f"{recipient_tuple[1].first_name} {recipient_tuple[1].last_name}"
+
+    progress_data = CircleProgress(
+        circle_id=circle.id,
+        cycle_number=current_cycle,
+        total_members=total_members,
+        paid_members=paid_count,
+        pending_members=total_members - paid_count,
+        expected_amount=expected_amount,
+        collected_amount=collected_amount,
+        payout_receiver_id=recipient_id,
+        payout_receiver_name=recipient_name,
+        contributions=progress_list
+    )
+    
+    circle_read = CircleRead.model_validate(circle)
+    circle_read.members = members_read
+    circle_read.progress = progress_data
+        
+    return APIResponse(message="Circle details retrieved", data=circle_read)
 
 @router.post("/join", response_model=APIResponse[dict])
 @limiter.limit("5/minute")
@@ -400,6 +506,7 @@ async def start_circle(
     
     # Update Circle status
     circle.status = "active"
+    circle.current_cycle = 1
     if not circle.cycle_start_date:
         circle.cycle_start_date = datetime.now()
         
@@ -565,6 +672,30 @@ async def contribute_to_circle(
     )
     session.add(debit_txn)
     
+    # Credit Circle Wallet
+    query = select(Wallet).where(Wallet.circle_id == circle.id)
+    result = await session.execute(query)
+    circle_wallet = result.scalar_one_or_none()
+    
+    if not circle_wallet:
+        # Fallback: Create one if missing
+        circle_wallet = Wallet(circle_id=circle.id, balance=0, currency="NGN")
+        session.add(circle_wallet)
+    
+    circle_wallet.balance += contribution_amount_cents
+    session.add(circle_wallet)
+    
+    # Create Credit Transaction (Circle)
+    credit_txn = Transaction(
+        wallet_id=circle_wallet.id,
+        amount=contribution_amount_cents,
+        type=TransactionType.CONTRIBUTION,
+        status=TransactionStatus.SUCCESS,
+        reference=str(uuid.uuid4()),
+        description=f"Received contribution from {current_user.first_name} (Cycle {current_cycle})"
+    )
+    session.add(credit_txn)
+    
     # Record Contribution
     contribution = Contribution(
         circle_id=circle.id,
@@ -576,28 +707,13 @@ async def contribute_to_circle(
     )
     session.add(contribution)
     
-    # Check for Payout Logic
-    # 1. Get total members count
-    query = select(CircleMember).where(CircleMember.circle_id == circle_id)
-    result = await session.execute(query)
-    all_members = result.scalars().all()
-    total_members_count = len(all_members)
+
     
-    # 2. Get count of paid contributions for this cycle (including the one just added)
-    # Since we haven't committed yet, the new contribution acts as +1
-    query = select(Contribution).where(
-        Contribution.circle_id == circle_id,
-        Contribution.cycle_number == current_cycle,
-        Contribution.status == ContributionStatus.PAID
-    )
-    result = await session.execute(query)
-    paid_contributions = result.scalars().all()
-    paid_count = len(paid_contributions) + 1 # Add 1 for the current pending contribution
+
     
-    payout_triggered = False
-    recipient_name = ""
+
     
-    if paid_count == total_members_count:
+    if False: # Payout logic removed because Circle Wallet is used now
         # Everyone has contributed -> Trigger Payout
         payout_triggered = True
         

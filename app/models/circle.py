@@ -18,6 +18,7 @@ class Circle(SQLModel, table=True):
     status: CircleStatus = Field(default=CircleStatus.PENDING, description="Current status of the circle")
     invite_code: str = Field(unique=True, description="Unique code for inviting members")
     target_members: int | None = Field(default=None, description="Target number of members needed to start")
+    current_cycle: int = Field(default=0, description="Current active cycle number")
     payout_preference: PayoutPreference = Field(default=PayoutPreference.FIXED, description="Payout order preference")
 
 class CircleMember(SQLModel, table=True):

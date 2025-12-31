@@ -1,5 +1,6 @@
 from datetime import datetime
 import uuid
+from typing import Optional, List
 from sqlmodel import SQLModel
 from app.models.enums import CircleFrequency, CircleStatus, PayoutPreference, CircleRole, ContributionStatus
 
@@ -38,11 +39,16 @@ class CircleCreate(CircleBase):
 
 class CircleRead(CircleBase):
     """
-    Schema for reading circle details.
+    Schema for reading circle details with embedded progress.
     """
     id: uuid.UUID
     status: CircleStatus
     invite_code: str
+    current_cycle: int
+    members: list["CircleMemberRead"] = []
+    # We can perform the progress aggregation in the backend and just return a shape here
+    # Reuse CircleProgress fields but embedded
+    progress: Optional["CircleProgress"] = None
 
 class CircleUpdate(SQLModel):
     """
@@ -86,3 +92,28 @@ class ContributionRead(SQLModel):
     amount: int
     status: ContributionStatus
     paid_at: datetime | None
+
+class ContributionProgress(SQLModel):
+    """
+    Schema for tracking individual member contribution progress.
+    """
+    user_id: uuid.UUID
+    user_name: str
+    payout_order: int
+    status: ContributionStatus = ContributionStatus.PENDING
+    paid_at: datetime | None = None
+
+class CircleProgress(SQLModel):
+    """
+    Schema for tracking circle contribution progress for a cycle.
+    """
+    circle_id: uuid.UUID
+    cycle_number: int
+    total_members: int
+    paid_members: int
+    pending_members: int
+    expected_amount: int
+    collected_amount: int
+    payout_receiver_id: uuid.UUID | None
+    payout_receiver_name: str | None
+    contributions: list[ContributionProgress]

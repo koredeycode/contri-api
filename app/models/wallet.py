@@ -8,7 +8,8 @@ class Wallet(SQLModel, table=True):
     User wallet model.
     """
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, description="Unique identifier for the wallet")
-    user_id: uuid.UUID = Field(foreign_key="user.id", description="ID of the wallet owner")
+    user_id: uuid.UUID | None = Field(default=None, foreign_key="user.id", description="ID of the wallet owner (if user)")
+    circle_id: uuid.UUID | None = Field(default=None, foreign_key="circle.id", description="ID of the circle (if circle wallet)")
     balance: int = Field(default=0, sa_type=BigInteger, description="Current wallet balance in kobo/cents")
     currency: str = Field(default="NGN", description="Currency code (e.g., 'NGN')")
 
