@@ -41,8 +41,8 @@ class Settings(BaseSettings):
     EMAILS_FROM_NAME: str | None = "Contri"
 
     # CELERY
-    CELERY_BROKER_URL: str = "redis://localhost:6379/0"
-    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
+    CELERY_BROKER_URL: str = "redis://localhost:6380/0"
+    CELERY_RESULT_BACKEND: str = "redis://localhost:6380/0"
 
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod

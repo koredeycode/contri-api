@@ -44,3 +44,38 @@ async def client(session):
     
     async with AsyncClient(transport=ASGITransport(app=new_app), base_url="http://test") as c:
         yield c
+
+@pytest.fixture(autouse=True)
+def mock_celery_task(monkeypatch):
+    """
+    Mock Celery task to avoid sending emails during tests.
+    """
+    from unittest.mock import MagicMock
+    # Create a mock that has a .delay method
+    mock_task = MagicMock()
+    mock_task.delay = MagicMock()
+    
+    # Patch the task in the worker module (source)
+    monkeypatch.setattr("app.worker.send_email_task", mock_task)
+    
+    # Patch where it is imported and used
+    # If modules use 'from app.worker import send_email_task', we must patch the name in that module
+    modules_to_patch = [
+        "app.api.v1.endpoints.auth.send_email_task",
+        "app.api.v1.endpoints.circles.send_email_task",
+        "app.api.v1.endpoints.paystack.send_email_task",
+        # "app.api.v1.endpoints.email_test.send_email_task", # Might not be loaded in all tests
+    ]
+    
+    import sys
+    for module_path in modules_to_patch:
+        # Only patch if the module is already loaded, otherwise patching app.worker (source) might be enough 
+        # IF the module imports it AFTER this fixture runs (unlikely with pytest collection).
+        # But force patching common endpoints.
+        try:
+             monkeypatch.setattr(module_path, mock_task)
+        except AttributeError:
+            # Module might not be imported yet or name doesn't exist
+            pass
+            
+    return mock_task

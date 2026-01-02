@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block preheader %}Your payout is ready!{% endblock %}
+
+{% block content %}
+<h2>It's Your Turn! 🚀</h2>
+<p>Hello {{ name }},</p>
+<p>
+    Good news! All members of <strong>{{ circle_name }}</strong> have contributed for Cycle #{{ cycle }}.
+</p>
+<p>
+    You are now eligible to claim your payout of <strong>{{ currency }} {{ amount }}</strong>.
+</p>
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" class="btn btn-primary">
+    <tbody>
+        <tr>
+            <td align="left">
+                <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                    <tbody>
+                        <tr>
+                            <td> <a href="{{ claim_link }}" target="_blank">Claim Payout</a> </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </td>
+        </tr>
+    </tbody>
+</table>
+<p>
+    Please claim it as soon as possible so we can proceed to the next cycle!
+</p>
+{% endblock %}
