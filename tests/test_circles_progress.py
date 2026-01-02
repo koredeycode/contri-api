@@ -94,10 +94,10 @@ async def test_contribution_progress(client: AsyncClient, session: AsyncSession)
     assert data["progress"]["paid_members"] == 0
     assert data["progress"]["pending_members"] == 2
     assert data["progress"]["collected_amount"] == 0
-    assert len(data["progress"]["contributions"]) == 2
+    assert len(data["contributions"]) == 2
     
     # Verify both are pending
-    for c in data["progress"]["contributions"]:
+    for c in data["contributions"]:
         assert c["status"] == "pending"
 
     # 5. Make a contribution for User 1 (Host)
@@ -121,7 +121,7 @@ async def test_contribution_progress(client: AsyncClient, session: AsyncSession)
     assert data["progress"]["collected_amount"] == 10000 # 10000 cents
     
     # Verify statuses
-    for c in data["progress"]["contributions"]:
+    for c in data["contributions"]:
         if c["user_id"] == str(user_1_in_db.id):
             assert c["status"] == "paid"
             assert c["paid_at"] is not None

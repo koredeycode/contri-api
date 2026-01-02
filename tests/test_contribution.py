@@ -105,13 +105,22 @@ async def test_contribution_flow(client, session):
     data = resp.json()["data"]
     assert data["payout_triggered"] is True
     
+    # Check Wallet 1 Debit
+    await session.refresh(w1)
+    assert w1.balance == 4000000 
+    
     # Check Wallet 2 Debit
     await session.refresh(w2)
     assert w2.balance == 4000000
     
-    # Check Wallet 1 Credit (Payout)
-    # The pool is 10000 * 2 = 20000.
-    # Recipient should be User 1 (Order 1 for Cycle 1)
-    # New Balance User 1 = 40000 (after debit) + 20000 (payout) = 60000
+    # 8. User 1 Claims Payout (Manual Step)
+    # User 1 is Order 1, Cycle 1 -> Eligible
+    resp = await client.post(f"/api/v1/circles/{circle_id}/claim", headers=headers1)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["data"]["amount"] == 2000000 # 10000 * 2
+    
+    # 9. Check Wallet 1 Credit (Payout)
+    # The pool is 1000000 * 2 = 2000000.
+    # New Balance User 1 = 4000000 (after debit) + 2000000 (payout) = 6000000
     await session.refresh(w1)
     assert w1.balance == 6000000

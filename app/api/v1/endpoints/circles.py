@@ -742,7 +742,9 @@ async def contribute_to_circle(
     result = await session.execute(query)
     paid_contributions_count = result.scalar_one()
     
+    payout_triggered = False
     if paid_contributions_count == total_members:
+        payout_triggered = True
         # Identify Recipient: Payout Order == Cycle Number (Modulo logic if cycle > members)
         target_order = current_cycle
         if target_order > total_members:
@@ -779,6 +781,7 @@ async def contribute_to_circle(
         data={
             "contribution_id": contribution.id,
             "cycle": current_cycle,
+            "payout_triggered": payout_triggered
         }
     )
 
