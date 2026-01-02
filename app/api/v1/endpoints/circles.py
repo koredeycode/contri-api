@@ -2,7 +2,7 @@ from typing import Annotated, List
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlmodel import select
+from sqlmodel import select, func
 
 import random
 from datetime import datetime
@@ -113,28 +113,6 @@ async def get_circle(
     
     if not member:
         raise HTTPException(status_code=403, detail="Not a member of this circle")
-        
-    # Lazy Update of Cycle (if active)
-    if circle.status == "active":
-        calculated_cycle = calculate_current_cycle(circle)
-        
-        # Get total members for cap check
-        query = select(CircleMember).where(CircleMember.circle_id == circle_id)
-        result = await session.execute(query)
-        members_list = result.scalars().all()
-        total_members = len(members_list)
-        
-        # Ensure cycle is at least 1 if active
-        current_cycle = max(circle.current_cycle, 1)
-        
-        if calculated_cycle > current_cycle:
-             # Cap at total members
-             new_cycle = min(calculated_cycle, total_members)
-             if new_cycle > current_cycle:
-                 circle.current_cycle = new_cycle
-                 session.add(circle)
-                 await session.commit()
-                 await session.refresh(circle)
     
     # Refresh to get latest cycle
     current_cycle = circle.current_cycle
@@ -248,14 +226,20 @@ async def join_circle(
     if existing_member:
         raise HTTPException(status_code=400, detail="Already a member")
         
-    # Get next payout order
-    query = select(CircleMember).where(CircleMember.circle_id == circle.id)
-    result = await session.execute(query)
-    members = result.scalars().all()
-    next_order = len(members) + 1
+    # Get current member count and max payout order
+    count_query = select(func.count()).select_from(CircleMember).where(CircleMember.circle_id == circle.id)
+    max_order_query = select(func.max(CircleMember.payout_order)).where(CircleMember.circle_id == circle.id)
     
-    if len(members) >= settings.MAX_CIRCLE_MEMBERS:
+    count_result = await session.execute(count_query)
+    current_count = count_result.scalar_one()
+    
+    max_order_result = await session.execute(max_order_query)
+    max_order = max_order_result.scalar_one() or 0
+    
+    if current_count >= settings.MAX_CIRCLE_MEMBERS:
         raise HTTPException(status_code=400, detail=f"Circle has reached the maximum limit of {settings.MAX_CIRCLE_MEMBERS} members")
+        
+    next_order = max_order + 1
     
     new_member = CircleMember(
         circle_id=circle.id,
@@ -304,7 +288,7 @@ async def join_circle(
                      "name": host_user.first_name,
                      "member_name": current_user.first_name,
                      "circle_name": circle.name,
-                     "current_members": len(members) + 1, # +1 for the new member
+                     "current_members": current_count + 1, # +1 for the new member
                      "target_members": circle.target_members or "Unlimited",
                      "circle_link": f"https://contri.app/circles/{circle.id}"
                 }
@@ -417,38 +401,38 @@ async def remove_member(
 
     return APIResponse(message="Member removed successfully", data={"member_id": member_id})
 
-@router.get("/{circle_id}/members", response_model=APIResponse[List[CircleMemberRead]])
-@limiter.limit("20/minute")
-async def get_circle_members(
-    request: Request,
-    circle_id: uuid.UUID,
-    current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)]
-):
-    """
-    Get all members of a circle.
-    """
-    circle = await session.get(Circle, circle_id)
-    if not circle:
-        raise HTTPException(status_code=404, detail="Circle not found")
+# @router.get("/{circle_id}/members", response_model=APIResponse[List[CircleMemberRead]])
+# @limiter.limit("20/minute")
+# async def get_circle_members(
+#     request: Request,
+#     circle_id: uuid.UUID,
+#     current_user: Annotated[User, Depends(get_current_user)],
+#     session: Annotated[AsyncSession, Depends(get_db)]
+# ):
+#     """
+#     Get all members of a circle.
+#     """
+#     circle = await session.get(Circle, circle_id)
+#     if not circle:
+#         raise HTTPException(status_code=404, detail="Circle not found")
 
-    # Check if user is a member
-    query = select(CircleMember).where(
-        CircleMember.circle_id == circle_id,
-        CircleMember.user_id == current_user.id
-    )
-    result = await session.execute(query)
-    member = result.scalar_one_or_none()
+#     # Check if user is a member
+#     query = select(CircleMember).where(
+#         CircleMember.circle_id == circle_id,
+#         CircleMember.user_id == current_user.id
+#     )
+#     result = await session.execute(query)
+#     member = result.scalar_one_or_none()
     
-    if not member:
-         raise HTTPException(status_code=403, detail="Not a member of this circle")
+#     if not member:
+#          raise HTTPException(status_code=403, detail="Not a member of this circle")
          
-    # Get all members
-    query = select(CircleMember).where(CircleMember.circle_id == circle_id).order_by(CircleMember.payout_order)
-    result = await session.execute(query)
-    members = result.scalars().all()
+#     # Get all members
+#     query = select(CircleMember).where(CircleMember.circle_id == circle_id).order_by(CircleMember.payout_order)
+#     result = await session.execute(query)
+#     members = result.scalars().all()
     
-    return APIResponse(message="Members retrieved", data=members)
+#     return APIResponse(message="Members retrieved", data=members)
 
 @router.post("/{circle_id}/start", response_model=APIResponse[CircleRead])
 @limiter.limit("5/minute")
@@ -481,14 +465,14 @@ async def start_circle(
         raise HTTPException(status_code=400, detail="Circle is already active or completed")
 
     # Check member count if target set
-    query = select(CircleMember).where(CircleMember.circle_id == circle_id)
-    result = await session.execute(query)
-    members = result.scalars().all()
+    count_query = select(func.count()).select_from(CircleMember).where(CircleMember.circle_id == circle_id)
+    result = await session.execute(count_query)
+    member_count = result.scalar_one()
     
-    if circle.target_members and len(members) < circle.target_members:
-         raise HTTPException(status_code=400, detail=f"Cannot start circle. Need {circle.target_members} members, but have {len(members)}")
+    if circle.target_members and member_count < circle.target_members:
+         raise HTTPException(status_code=400, detail=f"Cannot start circle. Need {circle.target_members} members, but have {member_count}")
          
-    if len(members) < 2:
+    if member_count < 2:
         raise HTTPException(status_code=400, detail="Need at least 2 members to start a circle")
 
     # Handle Payout Order
@@ -497,6 +481,11 @@ async def start_circle(
         # Let's assume random shuffles everyone including host unless we want to enforce host first.
         # Requirement: "payout order can be randomized or ordered set by the host"
         # Let's shuffle everyone for now.
+        # Fetch members for shuffle if random
+        query = select(CircleMember).where(CircleMember.circle_id == circle_id)
+        result = await session.execute(query)
+        members = result.scalars().all()
+        
         member_indices = list(range(len(members)))
         random.shuffle(member_indices)
         
@@ -516,6 +505,14 @@ async def start_circle(
     
     # Notify all members
     # Optimize: Fetch all users in one query
+    # Notify all members
+    # Re-fetch members if they weren't fetched for random shuffle (or use optimizations later)
+    # For now, fetch to get user IDs
+    if 'members' not in locals():
+        query = select(CircleMember).where(CircleMember.circle_id == circle_id)
+        result = await session.execute(query)
+        members = result.scalars().all()
+        
     member_user_ids = [m.user_id for m in members]
     query = select(User).where(User.id.in_(member_user_ids))
     result = await session.execute(query)
@@ -629,7 +626,7 @@ async def contribute_to_circle(
     if not member:
         raise HTTPException(status_code=403, detail="Not a member of this circle")
 
-    current_cycle = calculate_current_cycle(circle)
+    current_cycle = circle.current_cycle
     
     # Check if already contributed for this cycle
     query = select(Contribution).where(
@@ -707,50 +704,6 @@ async def contribute_to_circle(
     )
     session.add(contribution)
     
-
-    
-
-    
-
-    
-    if False: # Payout logic removed because Circle Wallet is used now
-        # Everyone has contributed -> Trigger Payout
-        payout_triggered = True
-        
-        # Identify Recipient: Payout Order == Cycle Number
-        # If cycle > members, we might need modulo logic or implementation of multi-rounds. 
-        # For MVP, let's assume Payout Order matches Cycle Number exactly.
-        
-        target_order = current_cycle
-        if target_order > total_members_count:
-             # Fallback or loop? Let's use modulo logic just in case: (cycle - 1) % members + 1
-             target_order = ((current_cycle - 1) % total_members_count) + 1
-        
-        recipient_member = next((m for m in all_members if m.payout_order == target_order), None)
-        
-        if recipient_member:
-            # Credit Recipient Wallet
-            query = select(Wallet).where(Wallet.user_id == recipient_member.user_id)
-            result = await session.execute(query)
-            recipient_wallet = result.scalar_one_or_none()
-            
-            if recipient_wallet:
-                total_payout_cents = contribution_amount_cents * total_members_count
-                recipient_wallet.balance += total_payout_cents
-                session.add(recipient_wallet)
-                
-                # Create Credit Transaction
-                credit_txn = Transaction(
-                    wallet_id=recipient_wallet.id,
-                    amount=total_payout_cents,
-                    type=TransactionType.PAYOUT,
-                    status=TransactionStatus.SUCCESS,
-                    reference=str(uuid.uuid4()),
-                    description=f"Payout from circle {circle.name} (Cycle {current_cycle})"
-                )
-                session.add(credit_txn)
-                recipient_name = str(recipient_member.user_id) # Ideally get user name, but ID is fine for log
-
     await session.commit()
     
     # Send Contribution Email
@@ -770,31 +723,196 @@ async def contribute_to_circle(
         }
     )
     
-    # Send Payout Email
-    if payout_triggered and recipient_member:
-        recipient_user = await session.get(User, recipient_member.user_id)
-        if recipient_user:
-             send_email_task.delay(
-                email_to=recipient_user.email,
-                subject=f"Payout Received from {circle.name}!",
-                html_template="payout_received.html",
-                environment={
-                     "project_name": "Contri",
-                     "name": recipient_user.first_name,
-                     "amount": f"{(circle.amount * total_members_count) / 100:,.2f}",
-                     "currency": "NGN",
-                     "cycle": current_cycle,
-                     "circle_name": circle.name,
-                     "dashboard_link": "https://contri.app/wallet"
-                }
-             )
+    # Check for Cycle Completion and Notify Recipient
+    # Count members
+    query = select(func.count()).select_from(CircleMember).where(CircleMember.circle_id == circle_id)
+    result = await session.execute(query)
+    total_members = result.scalar_one()
+
+    # Count paid contributions for this cycle
+    query = select(func.count()).select_from(Contribution).where(
+        Contribution.circle_id == circle_id,
+        Contribution.cycle_number == current_cycle,
+        Contribution.status == ContributionStatus.PAID
+    )
+    result = await session.execute(query)
+    paid_contributions_count = result.scalar_one()
+    
+    if paid_contributions_count == total_members:
+        # Identify Recipient: Payout Order == Cycle Number (Modulo logic if cycle > members)
+        target_order = current_cycle
+        if target_order > total_members:
+             target_order = ((current_cycle - 1) % total_members) + 1
+             
+        query = select(CircleMember).where(
+            CircleMember.circle_id == circle_id,
+            CircleMember.payout_order == target_order
+        )
+        result = await session.execute(query)
+        recipient_member = result.scalar_one_or_none()
+        
+        if recipient_member:
+            recipient_user = await session.get(User, recipient_member.user_id)
+            if recipient_user:
+                # Send Ready to Claim Email
+                send_email_task.delay(
+                    email_to=recipient_user.email,
+                    subject=f"It's your turn to claim! 💰",
+                    html_template="payout_ready.html", # Assuming this template exists or will be created
+                    environment={
+                         "project_name": "Contri",
+                         "name": recipient_user.first_name,
+                         "amount": f"{(circle.amount * total_members) / 100:,.2f}",
+                         "currency": "NGN",
+                         "cycle": current_cycle,
+                         "circle_name": circle.name,
+                         "claim_link": f"https://contri.app/circles/{circle.id}/claim" 
+                    }
+                )
 
     return APIResponse(
         message="Contribution successful", 
         data={
             "contribution_id": contribution.id,
             "cycle": current_cycle,
-            "payout_triggered": payout_triggered,
-            "recipient": recipient_name if payout_triggered else None
         }
     )
+
+@router.post("/{circle_id}/claim", response_model=APIResponse[dict])
+@limiter.limit("5/minute")
+async def claim_payout(
+    request: Request,
+    circle_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)]
+):
+    """
+    Claim payout for the current cycle if eligible.
+    """
+    circle = await session.get(Circle, circle_id)
+    if not circle:
+        raise HTTPException(status_code=404, detail="Circle not found")
+        
+    if circle.status != "active":
+        raise HTTPException(status_code=400, detail="Circle is not active")
+        
+    # Check membership
+    query = select(CircleMember).where(
+        CircleMember.circle_id == circle_id, 
+        CircleMember.user_id == current_user.id
+    )
+    result = await session.execute(query)
+    member = result.scalar_one_or_none()
+    
+    if not member:
+         raise HTTPException(status_code=403, detail="Not a member of this circle")
+
+    current_cycle = circle.current_cycle
+    
+    # Check member count
+    query = select(func.count()).select_from(CircleMember).where(CircleMember.circle_id == circle_id)
+    result = await session.execute(query)
+    total_members = result.scalar_one()
+
+    # Determine eligible payout order
+    target_order = current_cycle
+    if target_order > total_members:
+         target_order = ((current_cycle - 1) % total_members) + 1
+         
+    if member.payout_order != target_order:
+         raise HTTPException(status_code=403, detail="It is not your turn to claim")
+         
+    # Check if cycle is complete (all contributions paid)
+    query = select(func.count()).select_from(Contribution).where(
+        Contribution.circle_id == circle_id,
+        Contribution.cycle_number == current_cycle,
+        Contribution.status == ContributionStatus.PAID
+    )
+    result = await session.execute(query)
+    paid_count = result.scalar_one()
+    
+    if paid_count < total_members:
+        raise HTTPException(status_code=400, detail="Cycle is not yet complete. Waiting for all members to contribute.")
+        
+    # Check if already claimed
+    payout_ref = f"payout-{circle_id}-{current_cycle}"
+    query = select(Transaction).where(Transaction.reference == payout_ref)
+    result = await session.execute(query)
+    existing_payout = result.scalar_one_or_none()
+    
+    if existing_payout:
+         raise HTTPException(status_code=400, detail="Payout already claimed for this cycle")
+
+    # Get Circle Wallet
+    query = select(Wallet).where(Wallet.circle_id == circle.id)
+    result = await session.execute(query)
+    circle_wallet = result.scalar_one_or_none()
+    
+    if not circle_wallet:
+        raise HTTPException(status_code=500, detail="Circle wallet not found")
+        
+    # Get User Wallet
+    query = select(Wallet).where(Wallet.user_id == current_user.id)
+    result = await session.execute(query)
+    user_wallet = result.scalar_one_or_none()
+    
+    if not user_wallet:
+         raise HTTPException(status_code=400, detail="User wallet not found")
+         
+    # Calculate Payout Amount
+    payout_amount = circle.amount * total_members
+    
+    if circle_wallet.balance < payout_amount:
+         raise HTTPException(status_code=500, detail=f"Insufficient funds in circle wallet. Balance: {circle_wallet.balance}, Expected: {payout_amount}")
+         
+    # Execute Transfer
+    circle_wallet.balance -= payout_amount
+    user_wallet.balance += payout_amount
+    
+    session.add(circle_wallet)
+    session.add(user_wallet)
+    
+    # Create Transactions
+    # 1. User Credit (Payout)
+    user_txn = Transaction(
+        wallet_id=user_wallet.id,
+        amount=payout_amount,
+        type=TransactionType.PAYOUT,
+        status=TransactionStatus.SUCCESS,
+        reference=payout_ref, # Deterministic ref to prevent double claim
+        description=f"Payout from circle {circle.name} (Cycle {current_cycle})",
+        txn_metadata={"circle_id": str(circle_id), "cycle": current_cycle}
+    )
+    session.add(user_txn)
+    
+    # 2. Circle Debit (Payout)
+    circle_txn = Transaction(
+        wallet_id=circle_wallet.id,
+        amount=payout_amount,
+        type=TransactionType.PAYOUT,
+        status=TransactionStatus.SUCCESS,
+        reference=f"circle-debit-{circle_id}-{current_cycle}",
+        description=f"Payout to {current_user.first_name} (Cycle {current_cycle})",
+        txn_metadata={"user_id": str(current_user.id), "cycle": current_cycle}
+    )
+    session.add(circle_txn)
+    
+    await session.commit()
+    
+    # Send Email
+    send_email_task.delay(
+        email_to=current_user.email,
+        subject=f"Payout Received from {circle.name}! 🚀",
+        html_template="payout_received.html",
+        environment={
+             "project_name": "Contri",
+             "name": current_user.first_name,
+             "amount": f"{payout_amount / 100:,.2f}",
+             "currency": "NGN",
+             "cycle": current_cycle,
+             "circle_name": circle.name,
+             "dashboard_link": "https://contri.app/wallet"
+        }
+    )
+
+    return APIResponse(message="Payout claimed successfully", data={"amount": payout_amount, "cycle": current_cycle})
