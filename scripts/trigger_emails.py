@@ -5,6 +5,9 @@ from sqlalchemy import text
 from app.db.session import AsyncSessionLocal
 from app.core.config import settings
 
+print(settings.SMTP_USER)
+print(settings.SMTP_PASSWORD)
+
 # Configuration
 BASE_URL = "http://localhost:8000/api/v1"
 HOST_EMAIL = f"host_{uuid.uuid4().hex[:6]}@example.com"
