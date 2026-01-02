@@ -65,5 +65,8 @@ down:
 seed:
 	$(PYTHON) scripts/seed_db.py
 
+emails:	
+	$(PYTHON) scripts/trigger_emails.py
+
 flower:
 	docker compose up -d flower
