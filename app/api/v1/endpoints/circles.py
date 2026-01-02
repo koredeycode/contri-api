@@ -140,7 +140,13 @@ async def get_circle(
     
     for member_info, user in members_with_users:
         # Build Member Read
-        m_read = CircleMemberRead.model_validate(member_info)
+        m_read = CircleMemberRead(
+            user_id=member_info.user_id,
+            user_name=f"{user.first_name} {user.last_name}",
+            role=member_info.role,
+            payout_order=member_info.payout_order,
+            join_date=member_info.join_date
+        )
         members_read.append(m_read)
         
         # Build Contribution Progress
@@ -153,8 +159,7 @@ async def get_circle(
             
         progress_list.append(ContributionProgress(
             user_id=user.id,
-            user_name=f"{user.first_name} {user.last_name}",
-            payout_order=member_info.payout_order,
+
             status=status,
             paid_at=paid_at
         ))
@@ -177,22 +182,21 @@ async def get_circle(
             recipient_name = f"{recipient_tuple[1].first_name} {recipient_tuple[1].last_name}"
 
     progress_data = CircleProgress(
-        circle_id=circle.id,
         cycle_number=current_cycle,
         total_members=total_members,
         paid_members=paid_count,
         pending_members=total_members - paid_count,
         expected_amount=expected_amount,
-        collected_amount=collected_amount,
-        payout_receiver_id=recipient_id,
-        payout_receiver_name=recipient_name,
-        contributions=progress_list
+        collected_amount=collected_amount
     )
     
     circle_read = CircleRead.model_validate(circle)
     circle_read.members = members_read
     circle_read.progress = progress_data
-        
+    circle_read.contributions = progress_list
+    circle_read.payout_receiver_id = recipient_id
+    circle_read.payout_receiver_name = recipient_name
+    
     return APIResponse(message="Circle details retrieved", data=circle_read)
 
 @router.post("/join", response_model=APIResponse[dict])

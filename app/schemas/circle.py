@@ -49,6 +49,9 @@ class CircleRead(CircleBase):
     # We can perform the progress aggregation in the backend and just return a shape here
     # Reuse CircleProgress fields but embedded
     progress: Optional["CircleProgress"] = None
+    contributions: List["ContributionProgress"] = []
+    payout_receiver_id: uuid.UUID | None = None
+    payout_receiver_name: str | None = None
 
 class CircleUpdate(SQLModel):
     """
@@ -71,11 +74,15 @@ class CircleMemberCreate(SQLModel):
     user_id: uuid.UUID
     role: CircleRole = CircleRole.MEMBER
 
-class CircleMemberRead(CircleMemberCreate):
+class CircleMemberRead(SQLModel):
     """
     Schema for reading circle member details.
     """
+    user_id: uuid.UUID
+    user_name: str
+    role: CircleRole
     payout_order: int
+    join_date: datetime | None = None
 
 class CircleMemberReorder(SQLModel):
     """
@@ -98,8 +105,7 @@ class ContributionProgress(SQLModel):
     Schema for tracking individual member contribution progress.
     """
     user_id: uuid.UUID
-    user_name: str
-    payout_order: int
+
     status: ContributionStatus = ContributionStatus.PENDING
     paid_at: datetime | None = None
 
@@ -107,13 +113,12 @@ class CircleProgress(SQLModel):
     """
     Schema for tracking circle contribution progress for a cycle.
     """
-    circle_id: uuid.UUID
+    # circle_id: uuid.UUID # Redundant if embedded
     cycle_number: int
     total_members: int
     paid_members: int
     pending_members: int
     expected_amount: int
     collected_amount: int
-    payout_receiver_id: uuid.UUID | None
-    payout_receiver_name: str | None
-    contributions: list[ContributionProgress]
+    # Removed collections and payout info
+
